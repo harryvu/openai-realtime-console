@@ -23,8 +23,25 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Architecture
 
+### Unified Single-Port Architecture
+**Port 3000** - Single Express server handles both frontend and backend:
+```
+┌─────────────────────────────────────┐
+│     Single Express Server :3000     │
+├─────────────────────────────────────┤
+│  ┌─────────────┐  ┌─────────────┐  │
+│  │   Vite SSR  │  │  API Routes │  │
+│  │ (React App) │  │ /token      │  │
+│  │             │  │ /search     │  │
+│  │             │  │ /enhance-*  │  │
+│  └─────────────┘  └─────────────┘  │
+└─────────────────────────────────────┘
+```
+
 ### Server (server.js)
-- Express server with Vite middleware for React SSR
+- **Unified Architecture**: Single Express server on port 3000
+- **Vite Development Middleware**: Serves React frontend with SSR
+- **No Port Conflicts**: Frontend and backend on same origin (no CORS issues)
 - `/token` endpoint generates OpenAI Realtime API session tokens with citizenship-specific instructions
 - Uses `gpt-4o-realtime-preview-2025-06-03` model with "verse" voice
 - **RAG Endpoints**:
@@ -32,7 +49,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   - `/enhance-message` - Enhance user messages with relevant USCIS context
   - `/search/info` - Get database status and info
 - Vector database integration with automatic context injection
-- Serves React client with server-side rendering
+- **Request Routing**:
+  - `http://localhost:3000/` → React App (via Vite SSR)
+  - `http://localhost:3000/search` → API endpoint
+  - `http://localhost:3000/token` → API endpoint
 
 ### Client Architecture
 - **Entry Points**: `entry-client.jsx` (hydration), `entry-server.jsx` (SSR)
