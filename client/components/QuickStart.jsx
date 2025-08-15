@@ -54,7 +54,7 @@ export default function QuickStart({ sendTextMessage, isSessionActive }) {
               key={index}
               onClick={action.action}
               disabled={!isSessionActive}
-              className="text-left text-sm bg-white border border-gray-200 rounded-lg px-4 py-3 hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
+              className="text-left text-lg bg-white border border-gray-200 rounded-lg px-2 py-1 hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
             >
               {action.text}
             </button>

@@ -15,10 +15,30 @@ html,
 body {
   height: 100%;
   width: 100%;
+  min-width: 600px;
   margin: 0;
   padding: 0;
   overflow: hidden;
   font-family: "Consolas", "Andale Mono", monospace;
-  font-size: 0.9rem;
+  font-size: 1.08rem;
   background-color: var(--color-base);
+}
+
+/* Ensure app container respects minimum width */
+#root {
+  min-width: 600px;
+  height: 100%;
+}
+
+/* Responsive sidebar: 1/3 width with 300px minimum, hide if less than 300px */
+.sidebar-responsive {
+  width: calc(100vw / 3);
+  min-width: 300px;
+}
+
+/* Hide sidebar when viewport is too small (less than 900px = 300px * 3) */
+@media (max-width: 899px) {
+  .sidebar-responsive {
+    display: none;
+  }
 }

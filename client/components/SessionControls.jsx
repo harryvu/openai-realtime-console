@@ -17,7 +17,7 @@ function SessionStopped({ startSession }) {
       <Button
         onClick={handleStartSession}
         className={isActivating ? "bg-gray-600" : "bg-red-600"}
-        icon={<CloudLightning height={16} />}
+        icon={<CloudLightning height={19} />}
       >
         {isActivating ? "starting session..." : "start session"}
       </Button>
@@ -34,7 +34,7 @@ function SessionActive({ stopSession, sendTextMessage }) {
   }
 
   return (
-    <div className="flex items-center justify-center w-full h-full gap-4">
+    <div className="flex items-center w-full h-full gap-4">
       <input
         onKeyDown={(e) => {
           if (e.key === "Enter" && message.trim()) {
@@ -53,13 +53,19 @@ function SessionActive({ stopSession, sendTextMessage }) {
             handleSendClientEvent();
           }
         }}
-        icon={<MessageSquare height={16} />}
-        className="bg-blue-400"
+        icon={<MessageSquare height={19} />}
+        className="!bg-blue-400 !w-12 !h-12 !min-w-12 !p-0 !rounded-full !flex !items-center !justify-center"
+        aria-label="Send text message"
+        title="Send text message"
       >
-        send text
       </Button>
-      <Button onClick={stopSession} icon={<CloudOff height={16} />}>
-        disconnect
+      <Button 
+        onClick={stopSession} 
+        icon={<CloudOff height={19} />} 
+        className="!w-12 !h-12 !min-w-12 !p-0 !rounded-full !flex !items-center !justify-center"
+        aria-label="Disconnect session"
+        title="Disconnect session"
+      >
       </Button>
     </div>
   );
