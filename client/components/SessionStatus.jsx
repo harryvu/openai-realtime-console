@@ -6,6 +6,8 @@ export default function SessionStatus({
   sessionStartTime, 
   lastActivityTime, 
   isPaused, 
+  pausedAt,
+  totalPausedTime,
   showTimeoutWarning, 
   onPause, 
   onResume, 
@@ -21,7 +23,17 @@ export default function SessionStatus({
 
     const interval = setInterval(() => {
       const now = Date.now();
-      setSessionDuration(now - sessionStartTime);
+      
+      // Calculate total elapsed time
+      const totalElapsed = now - sessionStartTime;
+      
+      // Calculate current pause duration if currently paused
+      const currentPauseDuration = isPaused && pausedAt ? (now - pausedAt) : 0;
+      
+      // Billable time = total time - total paused time - current pause duration
+      const billableTime = totalElapsed - totalPausedTime - currentPauseDuration;
+      
+      setSessionDuration(Math.max(0, billableTime));
       
       if (lastActivityTime && !isPaused) {
         setInactiveTime(now - lastActivityTime);
@@ -31,7 +43,7 @@ export default function SessionStatus({
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [isSessionActive, sessionStartTime, lastActivityTime, isPaused]);
+  }, [isSessionActive, sessionStartTime, lastActivityTime, isPaused, pausedAt, totalPausedTime]);
 
   // Format time duration in MM:SS format
   function formatDuration(ms) {

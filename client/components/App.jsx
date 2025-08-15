@@ -16,10 +16,13 @@ function CitizenshipApp() {
   const [lastActivityTime, setLastActivityTime] = useState(null);
   const [showTimeoutWarning, setShowTimeoutWarning] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
+  const [pausedAt, setPausedAt] = useState(null);
+  const [totalPausedTime, setTotalPausedTime] = useState(0);
   const peerConnection = useRef(null);
   const audioElement = useRef(null);
   const activityTimeoutRef = useRef(null);
   const warningTimeoutRef = useRef(null);
+  const pausedSessionState = useRef(null);
 
   // Configuration constants
   const INACTIVITY_TIMEOUT = 8 * 60 * 1000; // 8 minutes
@@ -50,22 +53,76 @@ function CitizenshipApp() {
     }
   }
 
-  // Pause session to stop billing
+  // Pause session to stop billing - actually closes the connection
   function pauseSession() {
-    if (dataChannel && isSessionActive) {
-      setIsPaused(true);
-      // Clear activity timers when paused
+    if (dataChannel && isSessionActive && !isPaused) {
+      console.log('Pausing session - closing connection to stop billing');
+      
+      // Store session state for resume
+      pausedSessionState.current = {
+        events: [...events],
+        sessionStartTime,
+        lastActivityTime,
+      };
+      
+      // Close connection to stop billing
+      if (dataChannel) {
+        dataChannel.close();
+      }
+      
+      if (peerConnection.current) {
+        peerConnection.current.getSenders().forEach((sender) => {
+          if (sender.track) {
+            sender.track.stop();
+          }
+        });
+        peerConnection.current.close();
+      }
+      
+      // Clear timers
       if (activityTimeoutRef.current) clearTimeout(activityTimeoutRef.current);
       if (warningTimeoutRef.current) clearTimeout(warningTimeoutRef.current);
       setShowTimeoutWarning(false);
+      
+      // Set paused state but keep session marked as "active" for UI
+      setIsPaused(true);
+      setPausedAt(Date.now());
+      setDataChannel(null);
+      peerConnection.current = null;
     }
   }
 
-  // Resume session and restart activity monitoring
-  function resumeSession() {
-    if (dataChannel && isSessionActive && isPaused) {
-      setIsPaused(false);
-      resetActivityTimer();
+  // Resume session - creates new connection
+  async function resumeSession() {
+    if (isPaused && pausedSessionState.current) {
+      console.log('Resuming session - creating new connection');
+      
+      try {
+        // Restore session state
+        setEvents(pausedSessionState.current.events);
+        setSessionStartTime(pausedSessionState.current.sessionStartTime);
+        setLastActivityTime(Date.now()); // Update to current time
+        
+        // Create new session
+        await startSession(true);
+        
+        // Calculate and accumulate paused time
+        if (pausedAt) {
+          const pauseDuration = Date.now() - pausedAt;
+          setTotalPausedTime(prev => prev + pauseDuration);
+        }
+        
+        // Clear paused state
+        setIsPaused(false);
+        setPausedAt(null);
+        pausedSessionState.current = null;
+        
+        console.log('Session resumed successfully');
+      } catch (error) {
+        console.error('Failed to resume session:', error);
+        // If resume fails, stop the session completely
+        stopSession();
+      }
     }
   }
 
@@ -76,7 +133,7 @@ function CitizenshipApp() {
     resetActivityTimer();
   }
 
-  async function startSession() {
+  async function startSession(isResume = false) {
     // Get a session token for OpenAI Realtime API
     const tokenResponse = await fetch("/token");
     const data = await tokenResponse.json();
@@ -123,41 +180,48 @@ function CitizenshipApp() {
 
     peerConnection.current = pc;
     
-    // Initialize session timing
-    const now = Date.now();
-    setSessionStartTime(now);
-    setLastActivityTime(now);
+    // Initialize session timing only for new sessions, not resume
+    if (!isResume) {
+      const now = Date.now();
+      setSessionStartTime(now);
+      setLastActivityTime(now);
+    }
     setIsPaused(false);
   }
 
   // Stop current session, clean up peer connection and data channel
   function stopSession() {
+    console.log('Stopping session - cleaning up all connections and state');
+    
     // Clear all timers
     if (activityTimeoutRef.current) clearTimeout(activityTimeoutRef.current);
     if (warningTimeoutRef.current) clearTimeout(warningTimeoutRef.current);
 
+    // Clean up connection if it exists (may not exist if paused)
     if (dataChannel) {
       dataChannel.close();
     }
 
-    peerConnection.current.getSenders().forEach((sender) => {
-      if (sender.track) {
-        sender.track.stop();
-      }
-    });
-
     if (peerConnection.current) {
+      peerConnection.current.getSenders().forEach((sender) => {
+        if (sender.track) {
+          sender.track.stop();
+        }
+      });
       peerConnection.current.close();
     }
 
-    // Reset all session state
+    // Reset all session state - this should work whether paused or active
     setIsSessionActive(false);
     setDataChannel(null);
     setSessionStartTime(null);
     setLastActivityTime(null);
     setShowTimeoutWarning(false);
     setIsPaused(false);
+    setPausedAt(null);
+    setTotalPausedTime(0);
     peerConnection.current = null;
+    pausedSessionState.current = null;
   }
 
   // Send a message to the model
@@ -293,6 +357,8 @@ function CitizenshipApp() {
                 sessionStartTime={sessionStartTime}
                 lastActivityTime={lastActivityTime}
                 isPaused={isPaused}
+                pausedAt={pausedAt}
+                totalPausedTime={totalPausedTime}
                 showTimeoutWarning={showTimeoutWarning}
                 onPause={pauseSession}
                 onResume={resumeSession}
