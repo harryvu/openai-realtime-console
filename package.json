@@ -10,10 +10,15 @@
     "lint": "eslint . --ext .js,.jsx --fix"
   },
   "dependencies": {
+    "axios": "^1.11.0",
+    "chromadb": "^3.0.12",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
     "history": "^5.3.0",
     "minipass": "^7.0.4",
+    "openai": "^5.12.2",
+    "pdf2pic": "^3.2.0",
+    "pdfjs-dist": "^5.4.54",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-feather": "^2.0.10",

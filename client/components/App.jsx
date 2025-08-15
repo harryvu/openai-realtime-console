@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import logo from "/assets/openai-logomark.svg";
 import EventLog from "./EventLog";
 import SessionControls from "./SessionControls";
-import ToolPanel from "./ToolPanel";
+import CitizenshipTestPanel from "./CitizenshipTestPanel";
 
 export default function App() {
   const [isSessionActive, setIsSessionActive] = useState(false);
@@ -102,24 +102,62 @@ export default function App() {
     }
   }
 
-  // Send a text message to the model
-  function sendTextMessage(message) {
-    const event = {
-      type: "conversation.item.create",
-      item: {
-        type: "message",
-        role: "user",
-        content: [
-          {
-            type: "input_text",
-            text: message,
-          },
-        ],
-      },
-    };
+  // Send a text message to the model with RAG enhancement
+  async function sendTextMessage(message) {
+    try {
+      // Enhance the message with relevant citizenship context
+      const response = await fetch('/enhance-message', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message })
+      });
+      
+      const enhancementData = await response.json();
+      const finalMessage = enhancementData.enhancedMessage || message;
+      
+      console.log('Enhanced message:', {
+        original: message,
+        enhanced: finalMessage,
+        hasContext: enhancementData.hasContext
+      });
 
-    sendClientEvent(event);
-    sendClientEvent({ type: "response.create" });
+      const event = {
+        type: "conversation.item.create",
+        item: {
+          type: "message",
+          role: "user",
+          content: [
+            {
+              type: "input_text",
+              text: finalMessage,
+            },
+          ],
+        },
+      };
+
+      sendClientEvent(event);
+      sendClientEvent({ type: "response.create" });
+    } catch (error) {
+      console.error('Failed to enhance message, sending original:', error);
+      
+      // Fallback to original message if enhancement fails
+      const event = {
+        type: "conversation.item.create",
+        item: {
+          type: "message",
+          role: "user",
+          content: [
+            {
+              type: "input_text",
+              text: message,
+            },
+          ],
+        },
+      };
+
+      sendClientEvent(event);
+      sendClientEvent({ type: "response.create" });
+    }
   }
 
   // Attach event listeners to the data channel when a new one is created
@@ -148,7 +186,7 @@ export default function App() {
       <nav className="absolute top-0 left-0 right-0 h-16 flex items-center">
         <div className="flex items-center gap-4 w-full m-4 pb-2 border-0 border-b border-solid border-gray-200">
           <img style={{ width: "24px" }} src={logo} />
-          <h1>realtime console</h1>
+          <h1>US Citizenship Test Assistant</h1>
         </div>
       </nav>
       <main className="absolute top-16 left-0 right-0 bottom-0">
@@ -168,7 +206,7 @@ export default function App() {
           </section>
         </section>
         <section className="absolute top-0 w-[380px] right-0 bottom-0 p-4 pt-0 overflow-y-auto">
-          <ToolPanel
+          <CitizenshipTestPanel
             sendClientEvent={sendClientEvent}
             sendTextMessage={sendTextMessage}
             events={events}
