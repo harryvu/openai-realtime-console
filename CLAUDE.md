@@ -21,6 +21,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `npm run build:server` - Build SSR server only
 - `npm run lint` - Run ESLint with auto-fix
 
+### Database Commands
+- `npm run db:generate` - Generate database migrations
+- `npm run db:migrate` - Run database migrations  
+- `npm run db:push` - Push schema changes to database
+- `npm run db:studio` - Open Drizzle Studio for database management
+
 ## Architecture
 
 ### Unified Single-Port Architecture
@@ -76,25 +82,55 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Environment Setup
 
-Copy `.env.example` to `.env` and set `OPENAI_API_KEY` before running.
+Copy `.env.example` to `.env` and configure required variables:
+
+### Required Variables
+- `OPENAI_API_KEY` - Your OpenAI API key for embeddings and Realtime API
+
+### Optional Variables  
+- `DATABASE_URL` - PostgreSQL connection string (if using PostgreSQL database)
+- `USE_POSTGRES` - Set to 'false' to force JSON database usage (default: auto-detect based on DATABASE_URL)
+
+### Database Selection
+The application automatically chooses between JSON and PostgreSQL databases:
+- **PostgreSQL**: Used when `DATABASE_URL` is set and valid
+- **JSON**: Used as fallback when PostgreSQL is not available
 
 ## Tech Stack
 
 - **Frontend**: React 18, Vite, TailwindCSS
 - **Backend**: Express, Vite SSR
 - **API**: OpenAI Realtime API via WebRTC
-- **Vector Database**: Custom SimpleVectorDatabase with OpenAI embeddings (text-embedding-3-small)
-- **RAG**: Semantic search with cosine similarity
+- **Database**: PostgreSQL with pg_vector extension (production) or JSON file (development)
+- **ORM**: Drizzle ORM with type-safe queries and migrations
+- **Vector Database**: Dual implementation - PostgresVectorDatabase or SimpleVectorDatabase
+- **RAG**: Semantic search with cosine similarity using OpenAI embeddings (text-embedding-3-small)
 - **Data**: Complete USCIS 100 civics questions with current officials
 - **Styling**: TailwindCSS with PostCSS
 
 ## RAG System Architecture
 
-### Vector Database (`/lib/simpleVectorDatabase.js`)
-- Custom implementation with JSON file persistence (`./data/vector_database.json`)
-- Uses OpenAI `text-embedding-3-small` model for embeddings
-- Cosine similarity search with configurable result limits
-- 100 official USCIS questions with metadata (question_id, category, official answers)
+### Database Implementations
+
+#### PostgreSQL Vector Database (`/lib/postgresVectorDatabase.js`)
+- Production-ready implementation using PostgreSQL with pg_vector extension
+- Drizzle ORM for type-safe database operations
+- Native vector similarity search with cosine distance
+- User analytics and search query logging
+- Automatic database schema management and migrations
+
+#### JSON Vector Database (`/lib/simpleVectorDatabase.js`)
+- Development/fallback implementation with JSON file persistence (`./data/vector_database.json`)
+- In-memory vector operations with file-based persistence
+- Custom cosine similarity implementation
+- Zero-dependency vector search
+
+### Common Interface
+Both implementations provide identical APIs:
+- `initialize()` - Set up database connection and schema
+- `ingestDocuments(docs)` - Add documents with automatic embedding generation
+- `search(query, limit)` - Semantic search with similarity scoring
+- `getInfo()` - Database statistics and status information
 
 ### RAG Utilities (`/lib/ragUtils.js`)
 - Message enhancement with semantic search results

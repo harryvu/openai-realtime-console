@@ -1,0 +1,24 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg15
+    container_name: citizenship_postgres
+    environment:
+      POSTGRES_DB: citizenship_db
+      POSTGRES_USER: citizenship_user
+      POSTGRES_PASSWORD: citizenship_pass
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8"
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/init:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U citizenship_user -d citizenship_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+    driver: local

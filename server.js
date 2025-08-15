@@ -2,6 +2,8 @@ import express from "express";
 import fs from "fs";
 import { createServer as createViteServer } from "vite";
 import { SimpleVectorDatabase } from "./lib/simpleVectorDatabase.js";
+import { PostgresVectorDatabase } from "./lib/postgresVectorDatabase.js";
+import { testConnection } from "./lib/db/connection.js";
 import { prepareEnhancedMessage, isCitizenshipRelated, isCurrentOfficialsQuery } from "./lib/ragUtils.js";
 import "dotenv/config";
 
@@ -9,14 +11,30 @@ const app = express();
 const port = process.env.PORT || 3000;
 const apiKey = process.env.OPENAI_API_KEY;
 
+// Determine which database to use
+const USE_POSTGRES = process.env.DATABASE_URL && process.env.USE_POSTGRES !== 'false';
+
 // Initialize vector database
 let vectorDB;
 try {
-  vectorDB = new SimpleVectorDatabase();
-  await vectorDB.initialize();
-  console.log('✅ Vector database initialized');
+  if (USE_POSTGRES) {
+    console.log('🐘 Using PostgreSQL vector database...');
+    const connected = await testConnection();
+    if (!connected) {
+      throw new Error('Failed to connect to PostgreSQL');
+    }
+    vectorDB = new PostgresVectorDatabase();
+    await vectorDB.initialize();
+    console.log('✅ PostgreSQL vector database initialized');
+  } else {
+    console.log('📄 Using JSON vector database...');
+    vectorDB = new SimpleVectorDatabase();
+    await vectorDB.initialize();
+    console.log('✅ JSON vector database initialized');
+  }
 } catch (error) {
   console.error('❌ Failed to initialize vector database:', error);
+  console.log('💡 Tip: Set DATABASE_URL in .env to use PostgreSQL, or ensure JSON database exists');
 }
 
 // Middleware for JSON parsing
