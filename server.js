@@ -1,10 +1,15 @@
 import express from "express";
 import fs from "fs";
+import session from "express-session";
+import connectPgSimple from "connect-pg-simple";
 import { createServer as createViteServer } from "vite";
 import { SimpleVectorDatabase } from "./lib/simpleVectorDatabase.js";
 import { PostgresVectorDatabase } from "./lib/postgresVectorDatabase.js";
 import { testConnection } from "./lib/db/connection.js";
 import { prepareEnhancedMessage, isCitizenshipRelated, isCurrentOfficialsQuery } from "./lib/ragUtils.js";
+import passport from "./lib/auth/passport-config.js";
+import { optionalAuth, attachUser } from "./lib/auth/middleware.js";
+import { createDevUser } from "./lib/auth/dev-auth.js";
 import "dotenv/config";
 
 const app = express();
@@ -39,6 +44,34 @@ try {
 
 // Middleware for JSON parsing
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+// Session configuration
+const PgSession = connectPgSimple(session);
+const sessionConfig = {
+  store: USE_POSTGRES ? new PgSession({
+    conString: process.env.DATABASE_URL,
+    tableName: 'session',
+    createTableIfMissing: true
+  }) : undefined,
+  secret: process.env.SESSION_SECRET || 'citizenship-test-secret-change-in-production',
+  resave: false,
+  saveUninitialized: false,
+  cookie: {
+    secure: process.env.NODE_ENV === 'production',
+    httpOnly: true,
+    maxAge: 30 * 24 * 60 * 60 * 1000 // 30 days
+  }
+};
+
+app.use(session(sessionConfig));
+
+// Initialize Passport
+app.use(passport.initialize());
+app.use(passport.session());
+
+// Attach user info to all requests
+app.use(attachUser);
 
 // Configure Vite middleware for React client
 const vite = await createViteServer({
@@ -46,6 +79,65 @@ const vite = await createViteServer({
   appType: "custom",
 });
 app.use(vite.middlewares);
+
+// Authentication routes
+app.get('/auth/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
+app.get('/auth/google/callback', 
+  passport.authenticate('google', { failureRedirect: '/login?error=google' }),
+  (req, res) => {
+    res.redirect('/dashboard');
+  }
+);
+
+app.get('/auth/facebook', passport.authenticate('facebook', { scope: ['email'] }));
+app.get('/auth/facebook/callback',
+  passport.authenticate('facebook', { failureRedirect: '/login?error=facebook' }),
+  (req, res) => {
+    res.redirect('/dashboard');
+  }
+);
+
+app.get('/auth/microsoft', passport.authenticate('microsoft', { scope: ['user.read'] }));
+app.get('/auth/microsoft/callback',
+  passport.authenticate('microsoft', { failureRedirect: '/login?error=microsoft' }),
+  (req, res) => {
+    res.redirect('/dashboard');
+  }
+);
+
+app.post('/auth/logout', (req, res) => {
+  req.logout((err) => {
+    if (err) {
+      return res.status(500).json({ error: 'Logout failed' });
+    }
+    req.session.destroy((err) => {
+      if (err) {
+        return res.status(500).json({ error: 'Session destruction failed' });
+      }
+      res.clearCookie('connect.sid');
+      res.json({ success: true, message: 'Logged out successfully' });
+    });
+  });
+});
+
+// Development authentication (only in development)
+app.post('/auth/dev', createDevUser);
+
+// User info API endpoint
+app.get('/api/user', (req, res) => {
+  if (req.isAuthenticated()) {
+    res.json({
+      id: req.user.id,
+      userId: req.user.userId,
+      email: req.user.email,
+      name: req.user.name,
+      provider: req.user.provider,
+      createdAt: req.user.createdAt
+    });
+  } else {
+    res.status(401).json({ error: 'Not authenticated' });
+  }
+});
 
 // API route for token generation
 app.get("/token", async (req, res) => {

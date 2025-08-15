@@ -1,10 +1,13 @@
 import { useEffect, useRef, useState } from "react";
-import logo from "/assets/openai-logomark.svg";
-import EventLog from "./EventLog";
+import logo from "/assets/united-states.png";
+import QuickStart from "./QuickStart";
 import SessionControls from "./SessionControls";
 import CitizenshipTestPanel from "./CitizenshipTestPanel";
+import { AuthProvider, useAuth } from "../contexts/AuthContext";
+import { LoginPage } from "./LoginPage";
+import { AuthButton } from "./AuthButton";
 
-export default function App() {
+function CitizenshipApp() {
   const [isSessionActive, setIsSessionActive] = useState(false);
   const [events, setEvents] = useState([]);
   const [dataChannel, setDataChannel] = useState(null);
@@ -184,15 +187,25 @@ export default function App() {
   return (
     <>
       <nav className="absolute top-0 left-0 right-0 h-16 flex items-center">
-        <div className="flex items-center gap-4 w-full m-4 pb-2 border-0 border-b border-solid border-gray-200">
-          <img style={{ width: "24px" }} src={logo} />
-          <h1>US Citizenship Test Assistant</h1>
+        <div className="flex items-center justify-between w-full m-4 pb-2 border-0 border-b border-solid border-gray-200">
+          <div className="flex items-center gap-4">
+            <img style={{ width: "24px" }} src={logo} />
+            <h1>US Citizenship Test Assistant</h1>
+          </div>
+          <AuthButton 
+            user={useAuth().user} 
+            onLogout={useAuth().logout}
+            isLoading={useAuth().loading}
+          />
         </div>
       </nav>
       <main className="absolute top-16 left-0 right-0 bottom-0">
         <section className="absolute top-0 left-0 right-[380px] bottom-0 flex">
-          <section className="absolute top-0 left-0 right-0 bottom-32 px-4 overflow-y-auto">
-            <EventLog events={events} />
+          <section className="absolute top-0 left-0 right-0 bottom-32 overflow-y-auto">
+            <QuickStart 
+              sendTextMessage={sendTextMessage}
+              isSessionActive={isSessionActive}
+            />
           </section>
           <section className="absolute h-32 left-0 right-0 bottom-0 p-4">
             <SessionControls
@@ -215,5 +228,37 @@ export default function App() {
         </section>
       </main>
     </>
+  );
+}
+
+function AppWithAuth() {
+  const { user, loading } = useAuth();
+  
+  // Show loading spinner while checking authentication
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+  
+  // Show login page if not authenticated
+  if (!user) {
+    return <LoginPage />;
+  }
+  
+  // Show main app if authenticated
+  return <CitizenshipApp />;
+}
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <AppWithAuth />
+    </AuthProvider>
   );
 }

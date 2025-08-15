@@ -313,24 +313,6 @@ export default function CitizenshipTestPanel({
               </button>
             </div>
 
-            {/* Quick Actions */}
-            <div>
-              <h3 className="text-sm font-medium mb-2 flex items-center gap-1">
-                <HelpCircle size={14} />
-                Quick Start
-              </h3>
-              <div className="grid grid-cols-1 gap-1">
-                {quickActions.map((action, index) => (
-                  <button
-                    key={index}
-                    onClick={action.action}
-                    className="text-left text-sm bg-white border border-gray-200 rounded-md px-3 py-2 hover:bg-gray-50 transition-colors"
-                  >
-                    {action.text}
-                  </button>
-                ))}
-              </div>
-            </div>
 
             {/* Function Output */}
             {functionCallOutput ? (
