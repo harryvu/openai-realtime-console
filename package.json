@@ -33,6 +33,7 @@
     "passport-facebook": "^3.0.0",
     "passport-google-oauth20": "^2.0.0",
     "passport-microsoft": "^2.1.0",
+    "passport-oauth2": "^1.8.0",
     "pdf2pic": "^3.2.0",
     "pdfjs-dist": "^5.4.54",
     "pg": "^8.16.3",
