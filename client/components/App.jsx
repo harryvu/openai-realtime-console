@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import logo from "/assets/united-states.png";
 import QuickStart from "./QuickStart";
 import SessionControls from "./SessionControls";
+import SessionStatus from "./SessionStatus";
 import CitizenshipTestPanel from "./CitizenshipTestPanel";
 import { AuthProvider, useAuth } from "../contexts/AuthContext";
 import { LoginPage } from "./LoginPage";
@@ -11,8 +12,69 @@ function CitizenshipApp() {
   const [isSessionActive, setIsSessionActive] = useState(false);
   const [events, setEvents] = useState([]);
   const [dataChannel, setDataChannel] = useState(null);
+  const [sessionStartTime, setSessionStartTime] = useState(null);
+  const [lastActivityTime, setLastActivityTime] = useState(null);
+  const [showTimeoutWarning, setShowTimeoutWarning] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
   const peerConnection = useRef(null);
   const audioElement = useRef(null);
+  const activityTimeoutRef = useRef(null);
+  const warningTimeoutRef = useRef(null);
+
+  // Configuration constants
+  const INACTIVITY_TIMEOUT = 8 * 60 * 1000; // 8 minutes
+  const WARNING_TIME = 2 * 60 * 1000; // Show warning 2 minutes before timeout
+
+  // Reset activity timer and clear warnings
+  function resetActivityTimer() {
+    const now = Date.now();
+    setLastActivityTime(now);
+    setShowTimeoutWarning(false);
+
+    // Clear existing timeouts
+    if (activityTimeoutRef.current) clearTimeout(activityTimeoutRef.current);
+    if (warningTimeoutRef.current) clearTimeout(warningTimeoutRef.current);
+
+    // Only set timeouts if session is active and not paused
+    if (isSessionActive && !isPaused) {
+      // Set warning timeout (show warning 2 minutes before disconnect)
+      warningTimeoutRef.current = setTimeout(() => {
+        setShowTimeoutWarning(true);
+      }, INACTIVITY_TIMEOUT - WARNING_TIME);
+
+      // Set disconnect timeout
+      activityTimeoutRef.current = setTimeout(() => {
+        console.log('Auto-disconnecting due to inactivity');
+        stopSession();
+      }, INACTIVITY_TIMEOUT);
+    }
+  }
+
+  // Pause session to stop billing
+  function pauseSession() {
+    if (dataChannel && isSessionActive) {
+      setIsPaused(true);
+      // Clear activity timers when paused
+      if (activityTimeoutRef.current) clearTimeout(activityTimeoutRef.current);
+      if (warningTimeoutRef.current) clearTimeout(warningTimeoutRef.current);
+      setShowTimeoutWarning(false);
+    }
+  }
+
+  // Resume session and restart activity monitoring
+  function resumeSession() {
+    if (dataChannel && isSessionActive && isPaused) {
+      setIsPaused(false);
+      resetActivityTimer();
+    }
+  }
+
+  // Dismiss timeout warning (user acknowledged it)
+  function dismissTimeoutWarning() {
+    setShowTimeoutWarning(false);
+    // Reset activity timer to give user more time
+    resetActivityTimer();
+  }
 
   async function startSession() {
     // Get a session token for OpenAI Realtime API
@@ -60,10 +122,20 @@ function CitizenshipApp() {
     await pc.setRemoteDescription(answer);
 
     peerConnection.current = pc;
+    
+    // Initialize session timing
+    const now = Date.now();
+    setSessionStartTime(now);
+    setLastActivityTime(now);
+    setIsPaused(false);
   }
 
   // Stop current session, clean up peer connection and data channel
   function stopSession() {
+    // Clear all timers
+    if (activityTimeoutRef.current) clearTimeout(activityTimeoutRef.current);
+    if (warningTimeoutRef.current) clearTimeout(warningTimeoutRef.current);
+
     if (dataChannel) {
       dataChannel.close();
     }
@@ -78,8 +150,13 @@ function CitizenshipApp() {
       peerConnection.current.close();
     }
 
+    // Reset all session state
     setIsSessionActive(false);
     setDataChannel(null);
+    setSessionStartTime(null);
+    setLastActivityTime(null);
+    setShowTimeoutWarning(false);
+    setIsPaused(false);
     peerConnection.current = null;
   }
 
@@ -97,6 +174,9 @@ function CitizenshipApp() {
         message.timestamp = timestamp;
       }
       setEvents((prev) => [message, ...prev]);
+      
+      // Track user activity
+      resetActivityTimer();
     } else {
       console.error(
         "Failed to send message - no data channel available",
@@ -107,6 +187,9 @@ function CitizenshipApp() {
 
   // Send a text message to the model with RAG enhancement
   async function sendTextMessage(message) {
+    // Track user activity immediately when they send a message
+    resetActivityTimer();
+    
     try {
       // Enhance the message with relevant citizenship context
       const response = await fetch('/enhance-message', {
@@ -180,6 +263,8 @@ function CitizenshipApp() {
       dataChannel.addEventListener("open", () => {
         setIsSessionActive(true);
         setEvents([]);
+        // Start activity monitoring
+        resetActivityTimer();
       });
     }
   }, [dataChannel]);
@@ -202,6 +287,19 @@ function CitizenshipApp() {
       <main className="absolute top-16 left-0 right-0 bottom-0 flex">
         <section className="flex-1 min-w-0 flex flex-col">
           <section className="flex-1 overflow-y-auto">
+            <div className="p-4">
+              <SessionStatus
+                isSessionActive={isSessionActive}
+                sessionStartTime={sessionStartTime}
+                lastActivityTime={lastActivityTime}
+                isPaused={isPaused}
+                showTimeoutWarning={showTimeoutWarning}
+                onPause={pauseSession}
+                onResume={resumeSession}
+                onStopSession={stopSession}
+                onDismissWarning={dismissTimeoutWarning}
+              />
+            </div>
             <QuickStart 
               sendTextMessage={sendTextMessage}
               isSessionActive={isSessionActive}
