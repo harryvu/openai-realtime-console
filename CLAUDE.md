@@ -50,6 +50,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **No Port Conflicts**: Frontend and backend on same origin (no CORS issues)
 - `/token` endpoint generates OpenAI Realtime API session tokens with citizenship-specific instructions
 - Uses `gpt-4o-realtime-preview-2025-06-03` model with "verse" voice
+- gpt-4o-mini-realtime-preview-2024-12-17 is cheaper
 - **RAG Endpoints**:
   - `/search` - Search vector database for citizenship questions
   - `/enhance-message` - Enhance user messages with relevant USCIS context
