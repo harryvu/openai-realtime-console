@@ -70,10 +70,10 @@ export default function SessionStatus({
           <AlertTriangle className="w-5 h-5 text-orange-600 mt-0.5 flex-shrink-0" />
           <div className="flex-1">
             <p className="text-sm font-medium text-orange-800">
-              Session will auto-disconnect in 2 minutes due to inactivity
+              The AI is asking about continuing due to inactivity
             </p>
             <p className="text-xs text-orange-700 mt-1">
-              Send a message or pause the session to prevent auto-disconnect
+              Respond to the AI or dismiss this warning to continue the session
             </p>
           </div>
           <button
