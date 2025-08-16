@@ -4,12 +4,12 @@ import { HelpCircle, Award, BookOpen, Users } from 'react-feather';
 export default function QuickStart({ sendTextMessage, isSessionActive }) {
   const quickActions = [
     {
-      text: "Who is the current president?",
-      action: () => sendTextMessage && sendTextMessage("Who is the current president?")
+      text: "What is the supreme law of the land?",
+      action: () => sendTextMessage && sendTextMessage("What is the supreme law of the land?")
     },
     {
-      text: "Who is the vice president?",
-      action: () => sendTextMessage && sendTextMessage("Who is the vice president?")
+      text: "What does the Constitution do?",
+      action: () => sendTextMessage && sendTextMessage("What does the Constitution do?")
     },
     {
       text: "Give me a practice question",
@@ -28,14 +28,10 @@ export default function QuickStart({ sendTextMessage, isSessionActive }) {
   return (
     <div className="h-full flex flex-col p-4">
       <div className="text-center mb-8">
-        <div className="flex justify-center mb-4">
-          <div className="w-16 h-16 bg-blue-600 rounded-full flex items-center justify-center">
-            <Award className="w-8 h-8 text-white" />
-          </div>
+        <div className="flex items-center justify-center gap-3 mb-4 whitespace-nowrap">
+          <img style={{ width: "25px" }} src="/assets/united-states.png" alt="US Flag" />
+          <h1 className="text-xl font-bold text-gray-900">US Citizenship Test Assistant</h1>
         </div>
-        <h1 className="text-2xl font-bold text-gray-900 mb-2">
-          US Citizenship Test Assistant
-        </h1>
         <p className="text-gray-600">
           Practice with official USCIS questions and get grounded answers
         </p>

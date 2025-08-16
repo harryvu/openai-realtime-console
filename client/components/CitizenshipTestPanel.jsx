@@ -281,17 +281,6 @@ export default function CitizenshipTestPanel({
   return (
     <section className="h-full w-full flex flex-col gap-4">
       <div className="h-full bg-gray-50 rounded-md p-4 flex flex-col gap-4">
-        <div>
-          <h2 className="text-lg font-bold flex items-center gap-2">
-            <Award className="text-blue-600" size={20} />
-            US Citizenship Test Assistant
-          </h2>
-          <p className="text-sm text-gray-600 mt-1">
-            Practice with official USCIS questions and get grounded answers
-          </p>
-        </div>
-
-        <DatabaseInfo dbInfo={dbInfo} />
 
         {isSessionActive ? (
           <div className="flex flex-col gap-4 flex-1">
