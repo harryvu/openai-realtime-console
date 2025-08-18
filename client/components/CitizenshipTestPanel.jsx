@@ -397,30 +397,34 @@ export default function CitizenshipTestPanel({
         setFunctionCallOutput(updatedFunctionOutput);
         setFunctionType("practice");
         
-        // Start the 20-second timer for gentle check-in
+        // Start the 45-second timer for very gentle check-in
         if (practiceQuestionTimer) {
           clearTimeout(practiceQuestionTimer);
         }
         
         const timer = setTimeout(() => {
-          console.log('20-second timer firing - sending gentle check-in');
+          console.log('45-second timer firing - sending very gentle check-in');
           sendClientEvent({
             type: "response.create",
             response: {
               instructions: `
-                Gently check in with the user after they've had time to think about the practice question.
-                Ask if they want to try another practice question or if they have any questions about this topic. 
-                Be encouraging but brief.
+                After 45 seconds of silence, provide a very brief, gentle check-in.
+                Keep it short and non-pressuring. Let them know they can take their time.
                 
-                Example response: "How are you doing with that question? Take your time! 
-                Would you like to try another one, or do you have any questions about this topic?"
+                Example response: "Take all the time you need. Let me know if you'd like help or want to try another question."
+                
+                DO NOT: 
+                - Repeat the question
+                - Give hints about the answer
+                - Be overly chatty or encouraging
+                - Pressure them to respond faster
               `,
             },
           });
           setPracticeQuestionTimer(null);
-        }, 20000);
+        }, 45000);
         
-        console.log('Setting 20-second practice question timer');
+        console.log('Setting 45-second practice question timer');
         setPracticeQuestionTimer(timer);
         
       } else {
@@ -555,14 +559,24 @@ export default function CitizenshipTestPanel({
           if (output.name === "request_practice_question") {
             console.log('Practice question request detected:', output);
             
-            // Only process if this is a different question than currently displayed
+            // Process new questions (allow language switching and different formulations)
             try {
               const newQuestion = JSON.parse(output.arguments).question;
               
               console.log('Question comparison - Current:', currentQuestionRef.current, 'New:', newQuestion);
               
-              if (currentQuestionRef.current !== newQuestion) {
-                console.log('✅ New question detected, updating display:', newQuestion);
+              // Check if the displayed question matches what we expect
+              const displayedQuestion = functionCallOutput && JSON.parse(functionCallOutput.arguments).question;
+              console.log('🔍 DEBUG - Displayed question in sidebar:', displayedQuestion);
+              
+              // Always process if it's a different question or if sidebar shows different content
+              const isDifferentQuestion = currentQuestionRef.current !== newQuestion;
+              const sidebarMismatch = displayedQuestion && displayedQuestion !== newQuestion;
+              const isFirstQuestion = !currentQuestionRef.current;
+              
+              if (isDifferentQuestion || isFirstQuestion || sidebarMismatch) {
+                console.log('✅ Processing question request:', newQuestion);
+                console.log('📊 Reason:', { isDifferentQuestion, isFirstQuestion, sidebarMismatch });
                 currentQuestionRef.current = newQuestion;
                 handlePracticeQuestionRequest(output);
               } else {

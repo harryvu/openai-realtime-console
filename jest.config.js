@@ -69,5 +69,8 @@ export default {
   resetMocks: true,
   
   // Restore mocks after each test
-  restoreMocks: true
+  restoreMocks: true,
+  
+  // Increase timeout for integration tests
+  testTimeout: 15000
 };
