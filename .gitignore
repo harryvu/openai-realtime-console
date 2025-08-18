@@ -22,3 +22,6 @@ pnpm-debug.log*
 
 # database files
 data/vector_database.json
+
+# test coverage reports
+coverage/
