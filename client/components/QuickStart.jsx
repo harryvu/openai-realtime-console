@@ -29,8 +29,8 @@ export default function QuickStart({ sendTextMessage, isSessionActive }) {
     <div className="h-full flex flex-col p-4">
       <div className="text-center mb-8">
         <div className="flex items-center justify-center gap-3 mb-4 whitespace-nowrap">
-          <img style={{ width: "25px" }} src="/assets/united-states.png" alt="US Flag" />
-          <h1 className="text-xl font-bold text-gray-900">US Citizenship Test Assistant</h1>
+          <img style={{ width: "40px" }} src="/assets/united-states.png" alt="US Flag" />
+          <h1 className="text-3xl font-bold text-gray-900">US Citizenship Test Assistant</h1>
         </div>
         <p className="text-gray-600">
           Practice with official USCIS questions and get grounded answers

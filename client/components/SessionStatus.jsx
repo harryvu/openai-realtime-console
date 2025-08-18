@@ -60,7 +60,24 @@ export default function SessionStatus({
     return cost < 0.01 ? '< $0.01' : `$${cost.toFixed(2)}`;
   }
 
-  if (!isSessionActive) return null;
+  if (!isSessionActive) {
+    return (
+      <div className="bg-white border border-gray-200 rounded-lg p-3 mb-4 shadow-sm">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Clock className="w-4 h-4 text-gray-400" />
+            <div className="text-sm text-gray-500">
+              <span>Session inactive</span>
+              <span className="ml-2">($0.00)</span>
+            </div>
+          </div>
+          <div className="text-xs text-gray-400">
+            Start a session to see cost tracking
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="bg-white border border-gray-200 rounded-lg p-3 mb-4 shadow-sm">

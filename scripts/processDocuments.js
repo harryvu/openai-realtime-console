@@ -287,7 +287,7 @@ const CIVICS_QUESTIONS = [
   {
     id: 47,
     question: "What is the name of the Speaker of the House of Representatives now?",
-    answer: "Answers will vary. [Visit house.gov for the current Speaker of the House.]",
+    answer: "Mike Johnson",
     category: "System of Government"
   },
 

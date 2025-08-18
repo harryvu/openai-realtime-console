@@ -3,7 +3,6 @@ import fs from "fs";
 import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
 import { createServer as createViteServer } from "vite";
-import { SimpleVectorDatabase } from "./lib/simpleVectorDatabase.js";
 import { PostgresVectorDatabase } from "./lib/postgresVectorDatabase.js";
 import { testConnection } from "./lib/db/connection.js";
 import { prepareEnhancedMessage, isCitizenshipRelated, isCurrentOfficialsQuery } from "./lib/ragUtils.js";
@@ -16,30 +15,21 @@ const app = express();
 const port = process.env.PORT || 3000;
 const apiKey = process.env.OPENAI_API_KEY;
 
-// Determine which database to use
-const USE_POSTGRES = process.env.DATABASE_URL && process.env.USE_POSTGRES !== 'false';
-
-// Initialize vector database
+// Initialize PostgreSQL vector database
 let vectorDB;
 try {
-  if (USE_POSTGRES) {
-    console.log('🐘 Using PostgreSQL vector database...');
-    const connected = await testConnection();
-    if (!connected) {
-      throw new Error('Failed to connect to PostgreSQL');
-    }
-    vectorDB = new PostgresVectorDatabase();
-    await vectorDB.initialize();
-    console.log('✅ PostgreSQL vector database initialized');
-  } else {
-    console.log('📄 Using JSON vector database...');
-    vectorDB = new SimpleVectorDatabase();
-    await vectorDB.initialize();
-    console.log('✅ JSON vector database initialized');
+  console.log('🐘 Initializing PostgreSQL vector database...');
+  const connected = await testConnection();
+  if (!connected) {
+    throw new Error('Failed to connect to PostgreSQL. Please check DATABASE_URL in .env file.');
   }
+  vectorDB = new PostgresVectorDatabase();
+  await vectorDB.initialize();
+  console.log('✅ PostgreSQL vector database initialized');
 } catch (error) {
   console.error('❌ Failed to initialize vector database:', error);
-  console.log('💡 Tip: Set DATABASE_URL in .env to use PostgreSQL, or ensure JSON database exists');
+  console.log('💡 Please ensure DATABASE_URL is set in .env file and PostgreSQL is running');
+  throw error;
 }
 
 // Middleware for JSON parsing
@@ -49,11 +39,11 @@ app.use(express.urlencoded({ extended: true }));
 // Session configuration
 const PgSession = connectPgSimple(session);
 const sessionConfig = {
-  store: USE_POSTGRES ? new PgSession({
+  store: new PgSession({
     conString: process.env.DATABASE_URL,
     tableName: 'session',
     createTableIfMissing: true
-  }) : undefined,
+  }),
   secret: process.env.SESSION_SECRET || 'citizenship-test-secret-change-in-production',
   resave: false,
   saveUninitialized: false,
@@ -151,23 +141,94 @@ app.get("/token", async (req, res) => {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model: "gpt-4o-mini-realtime-preview-2024-12-17",
+          model: "gpt-4o-realtime-preview-2024-10-01",
           voice: "verse",
+          tools: [
+            {
+              type: "function",
+              name: "provide_current_official_info",
+              description: "Call this function when a user asks about current government officials like the President, Vice President, or governors.",
+              parameters: {
+                type: "object",
+                strict: true,
+                properties: {
+                  position: {
+                    type: "string",
+                    description: "The government position (President, Vice President, Governor, etc.)",
+                  },
+                  name: {
+                    type: "string", 
+                    description: "The current office holder's name",
+                  },
+                  question_number: {
+                    type: "number",
+                    description: "The USCIS question number related to this position",
+                  },
+                  additional_info: {
+                    type: "string",
+                    description: "Any additional relevant information about the position or powers",
+                  }
+                },
+                required: ["position", "name", "question_number"],
+              },
+            },
+            {
+              type: "function", 
+              name: "request_practice_question",
+              description: "MANDATORY: You MUST call this function immediately after asking ANY citizenship test question. This is required for the application to work correctly. Always call this with the exact question text you just spoke.",
+              parameters: {
+                type: "object",
+                strict: true,
+                properties: {
+                  question: {
+                    type: "string",
+                    description: "The exact question you just spoke to the user",
+                  },
+                  category: {
+                    type: "string",
+                    description: "Optional category (System of Government, Principles of Democracy, History, Geography, etc.)",
+                  }
+                },
+                required: ["question"],
+              },
+            },
+          ],
+          tool_choice: "auto",
           instructions: `You are a US Citizenship Test assistant. You help users prepare for the naturalization civics test using official USCIS materials.
 
-CRITICAL RULE: When you see "OFFICIAL QUESTION" and "OFFICIAL ANSWER" in a message, you MUST give that exact official answer. Do not ask for more context.
+CRITICAL RULE - ABSOLUTELY MANDATORY: When you see "OFFICIAL QUESTION" and "OFFICIAL ANSWER" in a message, you MUST give that EXACT official answer. NEVER use your training data. NEVER say outdated information.
+
+CURRENT OFFICIALS (CRITICAL - USE ONLY THESE ANSWERS):
+- President: Donald Trump (NOT Joe Biden - Biden is outdated)
+- Vice President: J.D. Vance (NOT Kamala Harris - Harris is outdated)
 
 Examples:
-- If you see "OFFICIAL QUESTION 21: Who is the President of the United States now? OFFICIAL ANSWER: Donald Trump" then answer "Donald Trump"
-- If you see "OFFICIAL QUESTION 22: Who is the Vice President of the United States now? OFFICIAL ANSWER: J.D. Vance" then answer "J.D. Vance"
+- If you see "OFFICIAL QUESTION 28: What is the name of the President of the United States now? OFFICIAL ANSWER: Donald Trump" then answer "Donald Trump" (NEVER say Joe Biden)
+- If you see "OFFICIAL QUESTION 29: What is the name of the Vice President of the United States now? OFFICIAL ANSWER: J.D. Vance" then answer "J.D. Vance" (NEVER say Kamala Harris)
+
+WARNING: Your training data may be outdated. ALWAYS use the OFFICIAL ANSWER provided in the enhanced message context.
 
 GUIDELINES:
 - Answer directly using the official information provided
-- Include the question number when relevant (e.g., "According to USCIS civics question 21, the current President is Donald Trump")
+- Include the question number when relevant (e.g., "According to USCIS civics question 28, the current President is Donald Trump")
 - Be encouraging about citizenship test preparation
-- Only discuss citizenship, civics, government, or US history topics
+- Focus on citizenship, civics, government, or US history topics
+- You can respond in multiple languages if the user speaks in another language
 
-For non-citizenship topics, redirect: "I'm specialized in US citizenship test preparation. Let me help you with American civics, government, or history instead. What would you like to know about the citizenship test?"`,
+When users ask for practice questions:
+1. Ask them a citizenship question (example: "What is the supreme law of the land?")
+2. IMMEDIATELY after speaking the question, you MUST call request_practice_question() function
+
+ABSOLUTELY MANDATORY - FUNCTION CALL REQUIRED:
+- After EVERY citizenship question you speak, call request_practice_question() with the exact question text
+- The application WILL NOT WORK without this function call
+- You CANNOT skip this function call
+- Example: You speak "What is the supreme law of the land?" → IMMEDIATELY call request_practice_question({"question": "What is the supreme law of the land?"})
+- If speaking in Vietnamese, include the English equivalent: request_practice_question({"question": "What is the name of the Vice President of the United States now?"})
+
+REMEMBER: Every citizenship question MUST be followed by the function call. No exceptions.
+
+For completely unrelated topics, politely redirect to citizenship topics while being respectful of the user's language preference.`,
         }),
       },
     );
@@ -215,11 +276,74 @@ app.get("/search/info", async (req, res) => {
       return res.status(500).json({ error: "Vector database not initialized" });
     }
     
-    const info = vectorDB.getInfo();
+    const info = await vectorDB.getInfo();
     res.json(info);
   } catch (error) {
     console.error("Database info error:", error);
     res.status(500).json({ error: "Failed to get database info" });
+  }
+});
+
+// API route to get a random practice question
+app.get("/random-question", async (req, res) => {
+  try {
+    if (!vectorDB) {
+      return res.status(500).json({ error: "Vector database not initialized" });
+    }
+    
+    console.log('🎲 Getting random question from database...');
+    
+    // Get a random question directly from database
+    const randomQuestion = await vectorDB.getRandomQuestion();
+    
+    console.log(`🎯 Selected random question ${randomQuestion.id}: ${randomQuestion.question}`);
+    
+    res.json({
+      id: randomQuestion.id,
+      question: randomQuestion.question,
+      answer: randomQuestion.answer,
+      category: randomQuestion.category
+    });
+  } catch (error) {
+    console.error("Random question error:", error);
+    res.status(500).json({ error: "Failed to get random question" });
+  }
+});
+
+// API route to check answer against database
+app.post("/check-answer", async (req, res) => {
+  try {
+    const { questionId, userAnswer } = req.body;
+    
+    if (!questionId || !userAnswer) {
+      return res.status(400).json({ error: "questionId and userAnswer are required" });
+    }
+
+    if (!vectorDB) {
+      return res.status(500).json({ error: "Vector database not initialized" });
+    }
+
+    console.log(`🔍 Checking answer for question ${questionId}: "${userAnswer}"`);
+    
+    // Get the correct answer from database
+    const questionData = await vectorDB.getQuestionById(questionId);
+    const correctAnswer = questionData.answer.toLowerCase().trim();
+    const userAnswerNormalized = userAnswer.toLowerCase().trim();
+    
+    // Simple exact match for now (can be enhanced later)
+    const isCorrect = correctAnswer.includes(userAnswerNormalized) || userAnswerNormalized.includes(correctAnswer);
+    
+    console.log(`✅ Answer check result: ${isCorrect ? 'CORRECT' : 'INCORRECT'}`);
+    
+    res.json({
+      correct: isCorrect,
+      canonical_answer: questionData.answer,
+      user_answer: userAnswer,
+      feedback: isCorrect ? "Correct!" : `The correct answer is: ${questionData.answer}`
+    });
+  } catch (error) {
+    console.error("Answer check error:", error);
+    res.status(500).json({ error: "Failed to check answer" });
   }
 });
 

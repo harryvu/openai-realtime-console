@@ -324,9 +324,9 @@
   {
     "id": 47,
     "question": "What is the name of the Speaker of the House of Representatives now?",
-    "answer": "Answers will vary. [Visit house.gov for the current Speaker of the House.]",
+    "answer": "Mike Johnson",
     "category": "System of Government",
-    "content": "Question 47: What is the name of the Speaker of the House of Representatives now?\nAnswer: Answers will vary. [Visit house.gov for the current Speaker of the House.]"
+    "content": "Question 47: What is the name of the Speaker of the House of Representatives now?\nAnswer: Mike Johnson"
   },
   {
     "id": 48,

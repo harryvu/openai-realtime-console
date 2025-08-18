@@ -8,6 +8,10 @@
     "build:server": "vite build --outDir dist/server --ssr /index.js",
     "devinstall": "zx ../../devinstall.mjs -- node server.js --dev",
     "lint": "eslint . --ext .js,.jsx --fix",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "test:ci": "jest --ci --coverage --watchAll=false",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push",
@@ -19,7 +23,6 @@
   },
   "dependencies": {
     "axios": "^1.11.0",
-    "chromadb": "^3.0.12",
     "connect-pg-simple": "^10.0.0",
     "dotenv": "^16.4.7",
     "drizzle-orm": "^0.44.4",
@@ -44,13 +47,24 @@
     "react-router-dom": "^6.20.0"
   },
   "devDependencies": {
+    "@babel/preset-env": "^7.28.3",
+    "@babel/preset-react": "^7.27.1",
+    "@testing-library/jest-dom": "^6.7.0",
+    "@testing-library/react": "^16.3.0",
+    "@testing-library/user-event": "^14.6.1",
     "@types/pg": "^8.15.5",
     "@vitejs/plugin-react": "^4.3.4",
+    "babel-jest": "^30.0.5",
     "drizzle-kit": "^0.31.4",
+    "identity-obj-proxy": "^3.0.0",
+    "jest": "^30.0.5",
+    "jest-environment-jsdom": "^30.0.5",
+    "msw": "^2.10.5",
     "postcss": "^8.4.31",
     "postcss-nesting": "^12.0.2",
     "postcss-preset-env": "^7.7.1",
     "tailwindcss": "^3.4.1",
-    "vite": "^5.0.2"
+    "vite": "^5.0.2",
+    "whatwg-fetch": "^3.6.20"
   }
 }

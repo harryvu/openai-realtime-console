@@ -1,8 +1,23 @@
 import fs from 'fs';
 import path from 'path';
-import { SimpleVectorDatabase } from '../lib/simpleVectorDatabase.js';
+import { PostgresVectorDatabase } from '../lib/postgresVectorDatabase.js';
+import { testConnection } from '../lib/db/connection.js';
 import { processUSCISDocuments } from './processDocuments.js';
+import { db } from '../lib/db/connection.js';
+import { civicsQuestions } from '../lib/db/schema.js';
 import 'dotenv/config';
+
+// Helper function to clear PostgreSQL database
+async function clearDatabase(vectorDB) {
+  try {
+    // Delete all records from civics_questions table
+    await db.delete(civicsQuestions);
+    console.log('🗑️ Cleared all records from civics_questions table');
+  } catch (error) {
+    console.error('Error clearing database:', error);
+    throw error;
+  }
+}
 
 async function ingestDocuments() {
   console.log('🚀 Starting document ingestion...');
@@ -14,9 +29,16 @@ async function ingestDocuments() {
   }
 
   try {
-    // Initialize vector database
-    const vectorDB = new SimpleVectorDatabase();
+    // Initialize PostgreSQL vector database  
+    console.log('🐘 Initializing PostgreSQL vector database...');
+    const connected = await testConnection();
+    if (!connected) {
+      throw new Error('Failed to connect to PostgreSQL. Please check DATABASE_URL in .env file.');
+    }
+    
+    const vectorDB = new PostgresVectorDatabase();
     await vectorDB.initialize();
+    console.log('✅ PostgreSQL vector database initialized');
 
     // Check if documents are already processed
     const processedPath = path.join('./data', 'processed-questions.json');
@@ -34,10 +56,14 @@ async function ingestDocuments() {
     const dbInfo = vectorDB.getInfo();
     console.log(`📊 Current database has ${dbInfo.count} documents`);
 
-    // Ask user if they want to clear existing data
+    // Clear existing data to ensure fresh ingestion with current officials
     if (dbInfo.count > 0) {
-      console.log('⚠️ Database already contains data. Clearing and re-ingesting...');
-      vectorDB.clear();
+      console.log('⚠️ Database already contains data. Clearing and re-ingesting with current officials...');
+      
+      // Clear the database by deleting all records
+      console.log('🗑️ Clearing existing data...');
+      await clearDatabase(vectorDB);
+      console.log('✅ Database cleared');
     }
 
     // Ingest documents

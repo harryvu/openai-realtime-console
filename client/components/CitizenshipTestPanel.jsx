@@ -1,8 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { BookOpen, HelpCircle, Award, Search } from "react-feather";
 
 const functionDescription = `
-Call this function when a user asks for citizenship test practice questions or wants to test their knowledge.
+SILENT FUNCTION: Call this function AFTER you speak a practice question to the user, but NEVER mention or announce that you're calling it.
+Simply provide the exact question text you just spoke so it can be displayed in the sidebar and matched to the database for the correct answer.
+The user should never know this function exists - it works behind the scenes to populate the sidebar.
 `;
 
 const currentOfficialsDescription = `
@@ -43,30 +45,22 @@ const sessionUpdate = {
       },
       {
         type: "function",
-        name: "provide_practice_question",
+        name: "request_practice_question",
         description: functionDescription,
         parameters: {
           type: "object",
           strict: true,
           properties: {
-            category: {
-              type: "string",
-              description: "Category of the citizenship question (Constitution & Law, Government, History, etc.)",
-            },
             question: {
               type: "string",
-              description: "The practice question from the USCIS 100 civics questions",
+              description: "The exact question you just spoke to the user",
             },
-            answer: {
-              type: "string", 
-              description: "The official answer to the question",
-            },
-            question_number: {
-              type: "number",
-              description: "The question number from the official USCIS list",
+            category: {
+              type: "string",
+              description: "Optional category (System of Government, Principles of Democracy, History, Geography, etc.)",
             }
           },
-          required: ["category", "question", "answer", "question_number"],
+          required: ["question"],
         },
       },
     ],
@@ -96,8 +90,174 @@ function CurrentOfficialOutput({ functionCallOutput }) {
   );
 }
 
-function PracticeQuestionOutput({ functionCallOutput }) {
-  const { category, question, answer, question_number } = JSON.parse(functionCallOutput.arguments);
+// Extract answer from RAG-enhanced context
+function extractAnswerFromContext(enhancedMessage, originalQuestion) {
+  console.log('Extracting answer from enhanced message:', enhancedMessage);
+  
+  // The enhanced message contains context from the vector database
+  // Look for patterns that indicate an answer
+  const answerPatterns = [
+    /OFFICIAL ANSWER[:\s]+(.*?)(?=\n|$)/i,
+    /Answer[:\s]+(.*?)(?=\n|$)/i,
+    /Official answer[:\s]+(.*?)(?=\n|$)/i,
+    // Look for text after the question
+    new RegExp(`${originalQuestion.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}[\\s\\n]*(?:Answer[:\\s]*)?([^\\n]+)`, 'i')
+  ];
+  
+  for (const pattern of answerPatterns) {
+    const match = enhancedMessage.match(pattern);
+    if (match && match[1]) {
+      let answer = match[1].trim();
+      // Clean up the answer
+      answer = answer.replace(/^[:\-\s]+/, ''); // Remove leading colons, dashes, spaces
+      answer = answer.replace(/\s+/g, ' '); // Normalize whitespace
+      if (answer.length > 10) { // Ensure we have a substantial answer
+        console.log('Extracted answer:', answer);
+        return answer;
+      }
+    }
+  }
+  
+  // If no pattern matches, try to find any substantial text that might be the answer
+  const lines = enhancedMessage.split('\n');
+  for (const line of lines) {
+    if (line.includes('Answer') || line.includes('answer')) {
+      const parts = line.split(/[:\-]/);
+      if (parts.length > 1) {
+        const possibleAnswer = parts[parts.length - 1].trim();
+        if (possibleAnswer.length > 10) {
+          console.log('Found answer in line:', possibleAnswer);
+          return possibleAnswer;
+        }
+      }
+    }
+  }
+  
+  console.log('Could not extract answer from context');
+  return null;
+}
+
+// Fallback answers for common questions when database search fails
+function getFallbackAnswer(questionNumber, questionText) {
+  const fallbacks = {
+    1: "the Constitution",
+    2: "sets up the government, defines the government, protects basic rights of Americans", 
+    3: "We the People",
+    4: "a change to the Constitution, an addition to the Constitution",
+    5: "the Bill of Rights",
+    6: "speech, religion, assembly, press, petition the government",
+    18: "one hundred (100)",
+    28: "Donald Trump",
+    29: "J.D. Vance", 
+    47: "Mike Johnson",
+    49: "serve on a jury, vote in a federal election",
+    63: "He freed the slaves (Emancipation Proclamation). He saved (or preserved) the Union. He led the United States during the Civil War.",
+  };
+  
+  // Try to match by question text if number doesn't work
+  if (!fallbacks[questionNumber]) {
+    if (questionText.includes("how many.*senator")) {
+      return "one hundred (100)";
+    }
+    if (questionText.includes("Speaker of the House")) {
+      return "Mike Johnson";
+    }
+    if (questionText.includes("President.*now")) {
+      return "Donald Trump";
+    }
+    if (questionText.includes("Vice President.*now")) {
+      return "J.D. Vance";
+    }
+  }
+  
+  return fallbacks[questionNumber] || `Answer not available for question ${questionNumber}. Please try another question or check the official USCIS materials.`;
+}
+
+function PracticeQuestionOutput({ functionCallOutput, sendTextMessage, onUserActivity }) {
+  const { category, question, question_number } = JSON.parse(functionCallOutput.arguments);
+  const [showAnswer, setShowAnswer] = useState(false);
+  const [answer, setAnswer] = useState(null);
+  const [loadingAnswer, setLoadingAnswer] = useState(false);
+
+  // Reset answer visibility when a new question loads
+  useEffect(() => {
+    setShowAnswer(false);
+    setAnswer(null);
+  }, [functionCallOutput]);
+
+  const handleShowAnswer = async () => {
+    if (!answer && !loadingAnswer) {
+      setLoadingAnswer(true);
+      try {
+        console.log(`Fetching answer for Q${question_number}: "${question}"`);
+        
+        // First try direct question search by text (more reliable than RAG for exact matches)
+        let response = await fetch('/search', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            query: question,
+            limit: 1
+          })
+        });
+        
+        let data = await response.json();
+        console.log('Direct search results:', data);
+        
+        if (data.results && data.results.length > 0 && data.results[0].similarity > 0.8) {
+          // High similarity match found
+          const directAnswer = data.results[0].metadata.answer;
+          console.log('Found direct answer:', directAnswer);
+          setAnswer(directAnswer);
+        } else {
+          // Fallback to RAG system
+          console.log('Using RAG system as fallback');
+          response = await fetch('/enhance-message', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              message: question
+            })
+          });
+          
+          const enhancementData = await response.json();
+          console.log('RAG enhancement data:', enhancementData);
+          
+          if (enhancementData.hasContext && enhancementData.enhancedMessage) {
+            const extractedAnswer = extractAnswerFromContext(enhancementData.enhancedMessage, question);
+            if (extractedAnswer) {
+              setAnswer(extractedAnswer);
+            } else {
+              const fallbackAnswer = getFallbackAnswer(question_number, question);
+              setAnswer(fallbackAnswer);
+            }
+          } else {
+            console.log('No context from RAG system, using fallback');
+            const fallbackAnswer = getFallbackAnswer(question_number, question);
+            setAnswer(fallbackAnswer);
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching answer:', error);
+        const fallbackAnswer = getFallbackAnswer(question_number, question);
+        setAnswer(fallbackAnswer);
+      } finally {
+        setLoadingAnswer(false);
+      }
+    }
+    setShowAnswer(true);
+    if (onUserActivity) onUserActivity(); // Cancel any pending AI encouragement
+  };
+
+  const handleTryAnotherQuestion = () => {
+    setShowAnswer(false); // Reset answer visibility for new question
+    if (onUserActivity) onUserActivity(); // Cancel any pending AI encouragement
+    sendTextMessage("Can you give me another citizenship test practice question?");
+  };
 
   return (
     <div className="flex flex-col gap-4">
@@ -107,10 +267,46 @@ function PracticeQuestionOutput({ functionCallOutput }) {
           <span className="text-sm font-medium text-blue-800">Question #{question_number}</span>
           <span className="text-xs bg-blue-200 text-blue-800 px-2 py-1 rounded">{category}</span>
         </div>
-        <h3 className="font-semibold text-gray-900 mb-2">{question}</h3>
-        <div className="text-sm text-gray-700">
-          <strong>Answer:</strong> {answer}
-        </div>
+        <h3 className="font-semibold text-gray-900 mb-3">{question}</h3>
+        
+        {showAnswer ? (
+          <div className="space-y-3">
+            <div className="text-sm text-gray-700 bg-green-50 border border-green-200 rounded p-3">
+              <strong className="text-green-800">Answer:</strong> 
+              {loadingAnswer ? (
+                <span className="text-green-600 italic"> Loading...</span>
+              ) : (
+                <span className="text-green-700"> {answer}</span>
+              )}
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setShowAnswer(false)}
+                className="text-xs px-3 py-1 bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition-colors"
+              >
+                Hide Answer
+              </button>
+              <button
+                onClick={handleTryAnotherQuestion}
+                className="text-xs px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors font-medium"
+              >
+                Try Another Question
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <div className="text-sm text-gray-600 italic">
+              Think about your answer, then click below to see the correct response.
+            </div>
+            <button
+              onClick={handleShowAnswer}
+              className="text-sm px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors font-medium"
+            >
+              Show Answer
+            </button>
+          </div>
+        )}
       </div>
       
       <div className="text-xs text-gray-600">
@@ -147,12 +343,94 @@ export default function CitizenshipTestPanel({
   sendClientEvent,
   events,
   sendTextMessage,
+  isPaused,
 }) {
   const [functionAdded, setFunctionAdded] = useState(false);
   const [functionCallOutput, setFunctionCallOutput] = useState(null);
   const [functionType, setFunctionType] = useState(null);
   const [dbInfo, setDbInfo] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [practiceQuestionTimer, setPracticeQuestionTimer] = useState(null);
+  const wasPausedRef = useRef(isPaused);
+  const currentQuestionRef = useRef(null);
+
+
+  // Handle practice question request by matching AI's spoken question to database
+  const handlePracticeQuestionRequest = async (functionCall) => {
+    console.log('🔍 DEBUG: handlePracticeQuestionRequest called with:', functionCall);
+    try {
+      const args = JSON.parse(functionCall.arguments);
+      const spokenQuestion = args.question;
+      
+      console.log('AI spoke question:', spokenQuestion);
+      console.log('Searching database for matching question...');
+      
+      // Search database for the question the AI spoke
+      const response = await fetch('/search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: spokenQuestion, limit: 1 })
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      
+      if (data.results && data.results.length > 0) {
+        const matchedQuestion = data.results[0];
+        
+        console.log('Found matching question in database:', matchedQuestion);
+        
+        // Create a function output with the matched database data
+        const updatedFunctionOutput = {
+          ...functionCall,
+          arguments: JSON.stringify({
+            category: matchedQuestion.metadata.category,
+            question: matchedQuestion.metadata.question,
+            question_number: matchedQuestion.metadata.question_id
+          })
+        };
+        
+        // Set this as the current function output
+        setFunctionCallOutput(updatedFunctionOutput);
+        setFunctionType("practice");
+        
+        // Start the 20-second timer for gentle check-in
+        if (practiceQuestionTimer) {
+          clearTimeout(practiceQuestionTimer);
+        }
+        
+        const timer = setTimeout(() => {
+          console.log('20-second timer firing - sending gentle check-in');
+          sendClientEvent({
+            type: "response.create",
+            response: {
+              instructions: `
+                Gently check in with the user after they've had time to think about the practice question.
+                Ask if they want to try another practice question or if they have any questions about this topic. 
+                Be encouraging but brief.
+                
+                Example response: "How are you doing with that question? Take your time! 
+                Would you like to try another one, or do you have any questions about this topic?"
+              `,
+            },
+          });
+          setPracticeQuestionTimer(null);
+        }, 20000);
+        
+        console.log('Setting 20-second practice question timer');
+        setPracticeQuestionTimer(timer);
+        
+      } else {
+        console.error('No matching question found in database for:', spokenQuestion);
+      }
+    } catch (error) {
+      console.error('Error matching spoken question to database:', error);
+    }
+  };
+
 
   // Fetch database info on component mount
   useEffect(() => {
@@ -169,36 +447,132 @@ export default function CitizenshipTestPanel({
     fetchDbInfo();
   }, []);
 
+  // Cancel practice question timer on any user activity
+  useEffect(() => {
+    if (!events || events.length === 0) return;
+    
+    // Check for user activity that should cancel the practice question timer
+    const latestEvent = events[0];
+    const userActivityEvents = [
+      'input_audio_buffer.speech_started',
+      'input_audio_buffer.committed'
+    ];
+    
+    // Only clear timer for actual user speech, not AI conversation items
+    const isUserSpeech = userActivityEvents.includes(latestEvent.type);
+    const isUserConversationItem = latestEvent.type === 'conversation.item.created' && 
+                                  latestEvent.item?.role === 'user';
+    
+    if ((isUserSpeech || isUserConversationItem) && practiceQuestionTimer) {
+      console.log('User activity detected, clearing practice question timer:', latestEvent.type);
+      clearTimeout(practiceQuestionTimer);
+      setPracticeQuestionTimer(null);
+    }
+  }, [events, practiceQuestionTimer]);
+
+  // Reset function state when transitioning from paused to active (but preserve practice questions)
+  useEffect(() => {
+    if (wasPausedRef.current && !isPaused && isSessionActive) {
+      console.log('🔄 Detected resume from pause - resetting function added flag for new session');
+      setFunctionAdded(false); // Reset so functions get re-added to new session
+      console.log('🧹 Clearing currentQuestionRef to allow new questions after resume');
+      currentQuestionRef.current = null; // Clear current question ref to allow new questions to be processed
+      // Note: We preserve functionCallOutput and functionType to keep practice question visible
+    }
+    wasPausedRef.current = isPaused;
+  }, [isPaused, isSessionActive]);
+
+  // Functions are now defined server-side, no need for client-side registration
+  useEffect(() => {
+    if (isSessionActive) {
+      console.log('🔧 DEBUG: Session is active, functions are defined server-side');
+      setFunctionAdded(true); // Mark as handled since server defines them
+    }
+  }, [isSessionActive]);
+
   useEffect(() => {
     if (!events || events.length === 0) return;
 
-    const firstEvent = events[events.length - 1];
-    if (!functionAdded && firstEvent.type === "session.created") {
-      sendClientEvent(sessionUpdate);
-      setFunctionAdded(true);
+    // Log all events to debug real application
+    console.log('🔍 DEBUG: Current events count:', events.length);
+    console.log('🔍 DEBUG: Recent events:', events.slice(0, 3).map(e => ({ type: e.type, hasResponse: !!e.response })));
+
+    // Check all response.done events to see their structure
+    const allResponseDoneEvents = events.filter(event => event.type === "response.done");
+    if (allResponseDoneEvents.length > 0) {
+      console.log('🔍 DEBUG: Found', allResponseDoneEvents.length, 'response.done events');
+      allResponseDoneEvents.slice(0, 2).forEach((event, index) => {
+        console.log(`🔍 DEBUG: Response ${index} structure:`, {
+          hasResponse: !!event.response,
+          hasOutput: !!event.response?.output,
+          outputLength: event.response?.output?.length || 0,
+          outputTypes: event.response?.output?.map(o => o.type) || []
+        });
+        
+        if (event.response?.output) {
+          event.response.output.forEach((output, outputIndex) => {
+            console.log(`🔍 DEBUG: Response ${index} Output ${outputIndex}:`, {
+              type: output.type,
+              name: output.name,
+              arguments: output.arguments?.substring?.(0, 100) + '...'
+            });
+          });
+        }
+      });
     }
 
-    const mostRecentEvent = events[0];
-    if (
-      mostRecentEvent.type === "response.done" &&
-      mostRecentEvent.response.output
-    ) {
-      mostRecentEvent.response.output.forEach((output) => {
+    // Find the most recent response.done event with function calls
+    const mostRecentResponseEvent = events.find(event => 
+      event.type === "response.done" && 
+      event.response?.output?.some(output => 
+        output.type === "function_call" && 
+        output.name === "request_practice_question"
+      )
+    );
+    
+    if (!mostRecentResponseEvent) {
+      console.log('🔍 DEBUG: No practice question function call found in recent events');
+      // Debug: Check if there are any function calls at all
+      const anyFunctionCalls = events.filter(event => 
+        event.type === "response.done" && 
+        event.response?.output?.some(output => output.type === "function_call")
+      );
+      console.log('🔍 DEBUG: Total response.done events with any function calls:', anyFunctionCalls.length);
+      if (anyFunctionCalls.length > 0) {
+        console.log('🔍 DEBUG: Recent function calls found:', anyFunctionCalls.slice(0, 2).map(e => 
+          e.response?.output?.filter(o => o.type === "function_call").map(o => o.name)
+        ));
+      }
+    }
+    
+    if (mostRecentResponseEvent) {
+      console.log('CitizenshipTestPanel - Processing most recent response event:', mostRecentResponseEvent.type);
+      console.log('CitizenshipTestPanel - Response output:', mostRecentResponseEvent.response.output);
+      
+      mostRecentResponseEvent.response.output.forEach((output) => {
+        console.log('Checking output type:', output.type, 'name:', output.name);
         if (output.type === "function_call") {
-          if (output.name === "provide_practice_question") {
-            setFunctionCallOutput(output);
-            setFunctionType("practice");
-            setTimeout(() => {
-              sendClientEvent({
-                type: "response.create",
-                response: {
-                  instructions: `
-                    Ask if they want to try another practice question or if they have 
-                    any questions about this topic. Be encouraging about their citizenship test preparation.
-                  `,
-                },
-              });
-            }, 500);
+          if (output.name === "request_practice_question") {
+            console.log('Practice question request detected:', output);
+            
+            // Only process if this is a different question than currently displayed
+            try {
+              const newQuestion = JSON.parse(output.arguments).question;
+              
+              console.log('Question comparison - Current:', currentQuestionRef.current, 'New:', newQuestion);
+              
+              if (currentQuestionRef.current !== newQuestion) {
+                console.log('✅ New question detected, updating display:', newQuestion);
+                currentQuestionRef.current = newQuestion;
+                handlePracticeQuestionRequest(output);
+              } else {
+                console.log('⚠️ Same question as currently displayed, skipping update');
+              }
+            } catch (error) {
+              console.error('Error parsing function call arguments:', error);
+              // Still call the handler for malformed arguments to maintain compatibility
+              handlePracticeQuestionRequest(output);
+            }
           } else if (output.name === "provide_current_official_info") {
             setFunctionCallOutput(output);
             setFunctionType("official");
@@ -297,6 +671,7 @@ export default function CitizenshipTestPanel({
               <button
                 onClick={handleSearch}
                 className="px-3 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                aria-label="Search citizenship topics"
               >
                 <Search size={16} />
               </button>
@@ -312,7 +687,16 @@ export default function CitizenshipTestPanel({
                 {functionType === "official" ? (
                   <CurrentOfficialOutput functionCallOutput={functionCallOutput} />
                 ) : (
-                  <PracticeQuestionOutput functionCallOutput={functionCallOutput} />
+                  <PracticeQuestionOutput 
+                    functionCallOutput={functionCallOutput} 
+                    sendTextMessage={sendTextMessage}
+                    onUserActivity={() => {
+                      if (practiceQuestionTimer) {
+                        clearTimeout(practiceQuestionTimer);
+                        setPracticeQuestionTimer(null);
+                      }
+                    }}
+                  />
                 )}
               </div>
             ) : (

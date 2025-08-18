@@ -25,6 +25,7 @@ function CitizenshipApp() {
   const pausedSessionState = useRef(null);
   const [isInWarningPeriod, setIsInWarningPeriod] = useState(false);
   const isInWarningPeriodRef = useRef(false);
+  const isResumingRef = useRef(false);
 
   // Configuration constants
   const INACTIVITY_TIMEOUT = 3 * 60 * 1000; // 3 minutes (using VAD detection)
@@ -135,7 +136,10 @@ function CitizenshipApp() {
       console.log('Resuming session - creating new connection');
       
       try {
-        // Restore session state
+        // Set flag to indicate we're resuming (prevents event clearing)
+        isResumingRef.current = true;
+        
+        // Restore session state but clear function call outputs
         setEvents(pausedSessionState.current.events);
         setSessionStartTime(pausedSessionState.current.sessionStartTime);
         setLastActivityTime(Date.now()); // Update to current time
@@ -153,6 +157,7 @@ function CitizenshipApp() {
         setIsPaused(false);
         setPausedAt(null);
         pausedSessionState.current = null;
+        isResumingRef.current = false; // Clear resume flag
         
         console.log('Session resumed successfully');
       } catch (error) {
@@ -268,6 +273,11 @@ function CitizenshipApp() {
   // Send a message to the model
   function sendClientEvent(message, skipActivityReset = false) {
     if (dataChannel) {
+      // Debug session.update events
+      if (message.type === 'session.update') {
+        console.log('🔧 Sending session.update to OpenAI:', JSON.stringify(message, null, 2));
+      }
+      
       const timestamp = new Date().toLocaleTimeString();
       message.event_id = message.event_id || crypto.randomUUID();
 
@@ -409,6 +419,28 @@ function CitizenshipApp() {
         }
 
 
+        // Debug logging for important events
+        if (event.type === "response.done") {
+          console.log('🔍 DEBUG: OpenAI response.done event');
+          if (event.response?.output) {
+            console.log('🔍 DEBUG: Response output count:', event.response.output.length);
+            event.response.output.forEach((output, index) => {
+              console.log(`🔍 DEBUG: Output ${index}:`, {
+                type: output.type,
+                name: output.name,
+                arguments: output.arguments
+              });
+            });
+          } else {
+            console.log('🔍 DEBUG: No response.output found');
+          }
+        }
+        
+        // Debug error events
+        if (event.type === "error") {
+          console.error('🚨 OpenAI ERROR:', event.error);
+        }
+        
         setEvents((prev) => [event, ...prev]);
         
         // Check for voice commands in conversation items
@@ -438,9 +470,16 @@ function CitizenshipApp() {
       };
 
       const handleOpen = () => {
-        console.log('Data channel opened');
+        console.log('Data channel opened - isResuming:', isResumingRef.current);
         setIsSessionActive(true);
-        setEvents([]);
+        
+        // Only clear events if NOT resuming from pause
+        if (!isResumingRef.current) {
+          console.log('Clearing events for new session');
+          setEvents([]);
+        } else {
+          console.log('Preserving events during resume');
+        }
         
         // Configure server VAD for reliable speech detection and enable transcription
         const vadConfigEvent = {
@@ -528,6 +567,7 @@ function CitizenshipApp() {
             sendTextMessage={sendTextMessage}
             events={events}
             isSessionActive={isSessionActive}
+            isPaused={isPaused}
           />
         </section>
       </main>
