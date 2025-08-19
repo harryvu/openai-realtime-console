@@ -353,6 +353,9 @@ export default function CitizenshipTestPanel({
   const [practiceQuestionTimer, setPracticeQuestionTimer] = useState(null);
   const wasPausedRef = useRef(isPaused);
   const currentQuestionRef = useRef(null);
+  
+  // Track processed function call IDs to prevent duplicate processing
+  const processedFunctionCallIds = useRef(new Set());
 
 
   // Handle practice question request by matching AI's spoken question to database
@@ -481,6 +484,7 @@ export default function CitizenshipTestPanel({
       setFunctionAdded(false); // Reset so functions get re-added to new session
       console.log('🧹 Clearing currentQuestionRef to allow new questions after resume');
       currentQuestionRef.current = null; // Clear current question ref to allow new questions to be processed
+      processedFunctionCallIds.current.clear(); // Clear processed function call IDs for new session
       // Note: We preserve functionCallOutput and functionType to keep practice question visible
     }
     wasPausedRef.current = isPaused;
@@ -559,6 +563,13 @@ export default function CitizenshipTestPanel({
           if (output.name === "request_practice_question") {
             console.log('Practice question request detected:', output);
             
+            // Check if we've already processed this specific function call
+            const functionCallId = output.call_id || output.id || `${output.name}_${output.arguments}`;
+            if (processedFunctionCallIds.current.has(functionCallId)) {
+              console.log('⏭️ Skipping already processed function call ID:', functionCallId);
+              return;
+            }
+            
             // Process new questions (allow language switching and different formulations)
             try {
               const newQuestion = JSON.parse(output.arguments).question;
@@ -578,9 +589,17 @@ export default function CitizenshipTestPanel({
                 console.log('✅ Processing question request:', newQuestion);
                 console.log('📊 Reason:', { isDifferentQuestion, isFirstQuestion, sidebarMismatch });
                 currentQuestionRef.current = newQuestion;
+                
+                // Mark this function call as processed
+                processedFunctionCallIds.current.add(functionCallId);
+                console.log('🔖 Added function call ID to processed set:', functionCallId);
+                
                 handlePracticeQuestionRequest(output);
               } else {
                 console.log('⚠️ Same question as currently displayed, skipping update');
+                
+                // Still mark as processed even if we skip, to avoid reprocessing
+                processedFunctionCallIds.current.add(functionCallId);
               }
             } catch (error) {
               console.error('Error parsing function call arguments:', error);

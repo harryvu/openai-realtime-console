@@ -1,7 +1,9 @@
-import '@testing-library/jest-dom';
-import 'whatwg-fetch';
+// UI test setup - uses CommonJS syntax for compatibility
+require('@testing-library/jest-dom');
+require('whatwg-fetch');
 
 // Add Node.js globals that are needed for PostgreSQL and other Node modules
+const { TextEncoder, TextDecoder } = require('util');
 global.TextEncoder = TextEncoder;
 global.TextDecoder = TextDecoder;
 
@@ -63,11 +65,72 @@ global.crypto = {
   randomUUID: jest.fn(() => 'test-uuid')
 };
 
-// Mock fetch globally
-global.fetch = jest.fn(() => Promise.resolve({
-  ok: true,
-  json: () => Promise.resolve({})
-}));
+// Mock fetch globally with comprehensive API responses
+global.fetch = jest.fn((url) => {
+  // Mock user authentication endpoint
+  if (url.includes('/api/user')) {
+    return Promise.resolve({
+      ok: true,
+      json: () => Promise.resolve({ user: null, authenticated: false })
+    });
+  }
+  
+  // Mock search endpoint
+  if (url.includes('/search')) {
+    return Promise.resolve({
+      ok: true,
+      json: () => Promise.resolve([
+        {
+          document: { question: "What is the supreme law of the land?", answer: "the Constitution" },
+          metadata: { question_id: 1, category: "Principles of Democracy" },
+          similarity: 0.95
+        }
+      ])
+    });
+  }
+  
+  // Mock random question endpoint
+  if (url.includes('/random-question')) {
+    return Promise.resolve({
+      ok: true,
+      json: () => Promise.resolve({
+        id: 1,
+        question: "What is the supreme law of the land?",
+        category: "Principles of Democracy"
+      })
+    });
+  }
+  
+  // Mock check answer endpoint
+  if (url.includes('/check-answer')) {
+    return Promise.resolve({
+      ok: true,
+      json: () => Promise.resolve({
+        correct: true,
+        canonical_answer: "the Constitution",
+        feedback: "Correct!"
+      })
+    });
+  }
+  
+  // Mock database info endpoint
+  if (url.includes('/search/info')) {
+    return Promise.resolve({
+      ok: true,
+      json: () => Promise.resolve({
+        total_documents: 100,
+        status: 'ready',
+        categories: { 'Principles of Democracy': 12, 'System of Government': 35 }
+      })
+    });
+  }
+  
+  // Default mock response
+  return Promise.resolve({
+    ok: true,
+    json: () => Promise.resolve({})
+  });
+});
 
 // Console warnings/errors that are expected in tests
 const originalError = console.error;
