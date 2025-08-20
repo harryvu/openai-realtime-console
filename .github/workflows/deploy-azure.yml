@@ -1,0 +1,213 @@
+name: Deploy to Azure App Service
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        default: 'production'
+        type: choice
+        options:
+          - production
+          - staging
+
+env:
+  AZURE_WEBAPP_NAME: 'citizenship-test-app'
+  AZURE_CONTAINER_REGISTRY: 'citizenshiptestregistry'
+  DOCKER_IMAGE_NAME: 'citizenship-test-assistant'
+  NODE_VERSION: '18'
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run linting
+        run: npm run lint
+
+      - name: Run tests
+        run: npm run test:ci
+        env:
+          CI: true
+
+      - name: Build application
+        run: npm run build
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-files
+          path: dist/
+          retention-days: 1
+
+  build-and-push-docker:
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    
+    outputs:
+      image-tag: ${{ steps.meta.outputs.tags }}
+      image-digest: ${{ steps.build.outputs.digest }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: dist-files
+          path: dist/
+
+      - name: Azure Login for Container Registry
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Log in to Azure Container Registry
+        run: |
+          az acr login --name ${{ env.AZURE_CONTAINER_REGISTRY }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.AZURE_CONTAINER_REGISTRY }}.azurecr.io/${{ env.DOCKER_IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=sha,prefix={{branch}}-
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push Docker image
+        id: build
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy-infrastructure:
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    
+    outputs:
+      webapp-name: ${{ steps.deploy.outputs.webappName }}
+      resource-group: ${{ steps.deploy.outputs.resourceGroupName }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Azure Login
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Deploy Azure Infrastructure
+        id: deploy
+        uses: azure/arm-deploy@v1
+        with:
+          subscriptionId: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          resourceGroupName: ${{ secrets.AZURE_RESOURCE_GROUP }}
+          template: ./infrastructure/main.bicep
+          parameters: |
+            appName=${{ env.AZURE_WEBAPP_NAME }}
+            containerRegistryName=${{ env.AZURE_CONTAINER_REGISTRY }}
+            dockerImageName=${{ env.DOCKER_IMAGE_NAME }}
+            openaiApiKey=${{ secrets.OPENAI_API_KEY }}
+            sessionSecret=${{ secrets.SESSION_SECRET }}
+            postgresAdminUsername=${{ secrets.POSTGRES_ADMIN_USERNAME }}
+            postgresAdminPassword=${{ secrets.POSTGRES_ADMIN_PASSWORD }}
+            environment=${{ github.event.inputs.environment || 'production' }}
+
+  deploy-application:
+    needs: [build-and-push-docker, deploy-infrastructure]
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Azure Login
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Deploy to Azure App Service
+        uses: azure/webapps-deploy@v2
+        with:
+          app-name: ${{ needs.deploy-infrastructure.outputs.webapp-name }}
+          images: ${{ needs.build-and-push-docker.outputs.image-tag }}
+
+      - name: Configure App Service settings
+        uses: azure/appservice-settings@v1
+        with:
+          app-name: ${{ needs.deploy-infrastructure.outputs.webapp-name }}
+          app-settings-json: |
+            [
+              {
+                "name": "WEBSITES_ENABLE_APP_SERVICE_STORAGE",
+                "value": "false"
+              },
+              {
+                "name": "WEBSITES_PORT",
+                "value": "3000"
+              },
+              {
+                "name": "NODE_ENV",
+                "value": "production"
+              }
+            ]
+
+      - name: Run database migrations
+        run: |
+          az webapp config appsettings set \
+            --resource-group ${{ needs.deploy-infrastructure.outputs.resource-group }} \
+            --name ${{ needs.deploy-infrastructure.outputs.webapp-name }} \
+            --settings MIGRATION_COMMAND="npm run db:migrate"
+
+  health-check:
+    needs: [deploy-application, deploy-infrastructure]
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Wait for application startup
+        run: sleep 60
+
+      - name: Health check
+        run: |
+          webapp_url="https://${{ needs.deploy-infrastructure.outputs.webapp-name }}.azurewebsites.net"
+          echo "Checking health of: $webapp_url/health"
+          
+          for i in {1..10}; do
+            if curl -f -s "$webapp_url/health" > /dev/null; then
+              echo "✅ Health check passed on attempt $i"
+              exit 0
+            fi
+            echo "⏳ Health check attempt $i failed, retrying in 30s..."
+            sleep 30
+          done
+          
+          echo "❌ Health check failed after 10 attempts"
+          exit 1
+
+      - name: Deployment Summary
+        run: |
+          echo "🎉 Deployment completed successfully!"
+          echo "🌐 Application URL: https://${{ needs.deploy-infrastructure.outputs.webapp-name }}.azurewebsites.net"
+          echo "🐳 Docker Image: ${{ needs.build-and-push-docker.outputs.image-tag }}"
+          echo "📊 Monitor at: https://portal.azure.com"

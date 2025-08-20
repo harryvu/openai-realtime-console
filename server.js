@@ -9,7 +9,27 @@ import { prepareEnhancedMessage, isCitizenshipRelated, isCurrentOfficialsQuery }
 import passport from "./lib/auth/passport-config.js";
 import { optionalAuth, attachUser } from "./lib/auth/middleware.js";
 import { createDevUser } from "./lib/auth/dev-auth.js";
+import appInsights from "applicationinsights";
 import "dotenv/config";
+
+// Initialize Application Insights for monitoring
+if (process.env.APPLICATIONINSIGHTS_CONNECTION_STRING) {
+  appInsights.setup(process.env.APPLICATIONINSIGHTS_CONNECTION_STRING)
+    .setAutoDependencyCorrelation(true)
+    .setAutoCollectRequests(true)
+    .setAutoCollectPerformance(true, true)
+    .setAutoCollectExceptions(true)
+    .setAutoCollectDependencies(true)
+    .setAutoCollectConsole(true)
+    .setUseDiskRetryCaching(true)
+    .setSendLiveMetrics(true)
+    .setDistributedTracingMode(appInsights.DistributedTracingModes.AI_AND_W3C)
+    .start();
+  
+  console.log('✅ Application Insights initialized');
+} else if (process.env.NODE_ENV === 'production') {
+  console.warn('⚠️  Application Insights connection string not found in production environment');
+}
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -298,6 +318,13 @@ app.get("/random-question", async (req, res) => {
     
     console.log(`🎯 Selected random question ${randomQuestion.id}: ${randomQuestion.question}`);
     
+    // Track telemetry for practice questions
+    trackCitizenshipEvent("PracticeQuestionRequested", {
+      questionId: randomQuestion.id,
+      category: randomQuestion.category,
+      questionText: randomQuestion.question.substring(0, 100) // First 100 chars for analysis
+    });
+    
     res.json({
       id: randomQuestion.id,
       question: randomQuestion.question,
@@ -334,6 +361,15 @@ app.post("/check-answer", async (req, res) => {
     const isCorrect = correctAnswer.includes(userAnswerNormalized) || userAnswerNormalized.includes(correctAnswer);
     
     console.log(`✅ Answer check result: ${isCorrect ? 'CORRECT' : 'INCORRECT'}`);
+    
+    // Track telemetry for answer checking
+    trackCitizenshipEvent("AnswerChecked", {
+      questionId: questionId,
+      correct: isCorrect,
+      category: questionData.category || "unknown",
+      userAnswerLength: userAnswer.length,
+      questionText: questionData.question.substring(0, 100)
+    });
     
     res.json({
       correct: isCorrect,
@@ -384,6 +420,15 @@ app.post("/enhance-message", async (req, res) => {
     // Prepare enhanced message with context
     const enhanced = prepareEnhancedMessage(message, searchResults);
     
+    // Track telemetry for RAG enhancement
+    trackCitizenshipEvent("MessageEnhanced", {
+      hasContext: enhanced.hasContext,
+      contextSize: enhanced.contextSize || 0,
+      searchResultsCount: searchResults.length,
+      isAboutCurrentOfficials: isAboutCurrentOfficials,
+      messageLength: message.length
+    });
+    
     res.json({
       originalMessage: message,
       enhancedMessage: enhanced.message,
@@ -396,6 +441,94 @@ app.post("/enhance-message", async (req, res) => {
     res.status(500).json({ error: "Failed to enhance message" });
   }
 });
+
+// Health check endpoint for Azure App Service and monitoring
+app.get("/health", async (_req, res) => {
+  try {
+    const health = {
+      status: "healthy",
+      timestamp: new Date().toISOString(),
+      version: process.env.npm_package_version || "unknown",
+      environment: process.env.NODE_ENV || "development",
+      uptime: Math.floor(process.uptime()),
+      checks: {
+        database: false,
+        vectorDatabase: false
+      }
+    };
+
+    // Check database connection
+    try {
+      const connected = await testConnection();
+      health.checks.database = connected;
+    } catch (error) {
+      health.checks.database = false;
+      console.warn("Health check: Database connection failed", error.message);
+    }
+
+    // Check vector database
+    try {
+      if (vectorDB) {
+        const info = await vectorDB.getInfo();
+        health.checks.vectorDatabase = info && info.totalDocuments >= 0;
+      }
+    } catch (error) {
+      health.checks.vectorDatabase = false;
+      console.warn("Health check: Vector database check failed", error.message);
+    }
+
+    // Determine overall status
+    const allChecksHealthy = Object.values(health.checks).every(check => check === true);
+    health.status = allChecksHealthy ? "healthy" : "degraded";
+
+    // Send custom telemetry to Application Insights
+    if (appInsights.defaultClient) {
+      appInsights.defaultClient.trackEvent({
+        name: "HealthCheck",
+        properties: {
+          status: health.status,
+          databaseHealthy: health.checks.database.toString(),
+          vectorDatabaseHealthy: health.checks.vectorDatabase.toString(),
+          environment: health.environment
+        }
+      });
+    }
+
+    const statusCode = health.status === "healthy" ? 200 : 503;
+    res.status(statusCode).json(health);
+  } catch (error) {
+    console.error("Health check error:", error);
+    
+    // Send error telemetry
+    if (appInsights.defaultClient) {
+      appInsights.defaultClient.trackException({
+        exception: error,
+        properties: {
+          operation: "HealthCheck"
+        }
+      });
+    }
+
+    res.status(500).json({
+      status: "unhealthy",
+      timestamp: new Date().toISOString(),
+      error: error.message
+    });
+  }
+});
+
+// Custom telemetry for citizenship-specific events
+const trackCitizenshipEvent = (eventName, properties = {}) => {
+  if (appInsights.defaultClient) {
+    appInsights.defaultClient.trackEvent({
+      name: `Citizenship_${eventName}`,
+      properties: {
+        ...properties,
+        timestamp: new Date().toISOString()
+      }
+    });
+  }
+};
 
 // Render the React client
 app.use("*", async (req, res, next) => {

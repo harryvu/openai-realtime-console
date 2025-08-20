@@ -30,6 +30,7 @@
     "docker:reset": "docker-compose down -v && docker-compose up -d"
   },
   "dependencies": {
+    "applicationinsights": "^3.9.0",
     "axios": "^1.11.0",
     "connect-pg-simple": "^10.0.0",
     "dotenv": "^16.4.7",
