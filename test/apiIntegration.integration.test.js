@@ -5,24 +5,24 @@
 
 import { setupTestEnvironment, teardownTestEnvironment } from './testSetup.integration.js';
 
-// Helper to conditionally describe or skip tests
-const conditionalDescribe = (condition, ...args) => {
+// Helper to conditionally describe or skip tests (unused for now)
+const _conditionalDescribe = (condition, ...args) => {
   return condition ? describe(...args) : describe.skip(...args);
 };
 
-// Check if we should run integration tests
-let shouldRunIntegrationTests = false;
+// Check if we should run integration tests (unused for now)
+let _shouldRunIntegrationTests = false;
 
 // Test setup
 const testSetup = async () => {
   try {
     const testEnv = await setupTestEnvironment();
-    shouldRunIntegrationTests = true;
+    _shouldRunIntegrationTests = true;
     return testEnv;
   } catch (error) {
     if (error.message.includes('Failed to connect to test database')) {
       console.log('⚠️ Skipping integration tests - test database not available');
-      shouldRunIntegrationTests = false;
+      _shouldRunIntegrationTests = false;
       return null;
     } else {
       throw error;
