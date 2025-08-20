@@ -1,5 +1,5 @@
-import { useEffect, useState, useRef } from "react";
-import { BookOpen, HelpCircle, Award, Search } from "react-feather";
+import { useEffect, useState, useRef, useCallback } from "react";
+import { BookOpen, Award, Search } from "react-feather";
 
 const functionDescription = `
 SILENT FUNCTION: Call this function AFTER you speak a practice question to the user, but NEVER mention or announce that you're calling it.
@@ -11,7 +11,7 @@ const currentOfficialsDescription = `
 Call this function when a user asks about current government officials like the President, Vice President, or governors.
 `;
 
-const sessionUpdate = {
+const _sessionUpdate = {
   type: "session.update",
   session: {
     tools: [
@@ -122,7 +122,7 @@ function extractAnswerFromContext(enhancedMessage, originalQuestion) {
   const lines = enhancedMessage.split('\n');
   for (const line of lines) {
     if (line.includes('Answer') || line.includes('answer')) {
-      const parts = line.split(/[:\-]/);
+      const parts = line.split(/[:"-]/);
       if (parts.length > 1) {
         const possibleAnswer = parts[parts.length - 1].trim();
         if (possibleAnswer.length > 10) {
@@ -321,7 +321,7 @@ function PracticeQuestionOutput({ functionCallOutput, sendTextMessage, onUserAct
   );
 }
 
-function DatabaseInfo({ dbInfo }) {
+function _DatabaseInfo({ dbInfo }) {
   if (!dbInfo) return null;
 
   return (
@@ -345,10 +345,10 @@ export default function CitizenshipTestPanel({
   sendTextMessage,
   isPaused,
 }) {
-  const [functionAdded, setFunctionAdded] = useState(false);
+  const [_functionAdded, setFunctionAdded] = useState(false);
   const [functionCallOutput, setFunctionCallOutput] = useState(null);
   const [functionType, setFunctionType] = useState(null);
-  const [dbInfo, setDbInfo] = useState(null);
+  const [_dbInfo, setDbInfo] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [practiceQuestionTimer, setPracticeQuestionTimer] = useState(null);
   const wasPausedRef = useRef(isPaused);
@@ -359,7 +359,7 @@ export default function CitizenshipTestPanel({
 
 
   // Handle practice question request by matching AI's spoken question to database
-  const handlePracticeQuestionRequest = async (functionCall) => {
+  const handlePracticeQuestionRequest = useCallback(async (functionCall) => {
     console.log('🔍 DEBUG: handlePracticeQuestionRequest called with:', functionCall);
     try {
       const args = JSON.parse(functionCall.arguments);
@@ -436,7 +436,7 @@ export default function CitizenshipTestPanel({
     } catch (error) {
       console.error('Error matching spoken question to database:', error);
     }
-  };
+  }, [practiceQuestionTimer, sendClientEvent]);
 
 
   // Fetch database info on component mount
@@ -624,7 +624,7 @@ export default function CitizenshipTestPanel({
         }
       });
     }
-  }, [events]);
+  }, [events, functionCallOutput, handlePracticeQuestionRequest, sendClientEvent]);
 
   useEffect(() => {
     if (!isSessionActive) {
@@ -662,7 +662,7 @@ export default function CitizenshipTestPanel({
     }
   };
 
-  const quickActions = [
+  const _quickActions = [
     {
       text: "Who is the current president?",
       action: () => sendTextMessage && sendTextMessage("Who is the current president?")

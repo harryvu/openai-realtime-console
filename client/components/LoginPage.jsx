@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { AuthButton } from './AuthButton';
 import { BookOpen, Users, Award } from 'react-feather';
 import logo from '/assets/united-states.png';
@@ -38,7 +38,7 @@ export function LoginPage() {
         const errorData = await response.json();
         setError(errorData.error || 'Development login failed');
       }
-    } catch (err) {
+    } catch {
       setError('Network error during development login');
     } finally {
       setIsLoading(false);

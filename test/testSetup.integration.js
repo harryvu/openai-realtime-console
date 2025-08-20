@@ -1,5 +1,5 @@
 import { config } from 'dotenv';
-import { PostgresVectorDatabase } from '../lib/postgresVectorDatabase.js';
+import { PostgresVectorDatabase as _PostgresVectorDatabase } from '../lib/postgresVectorDatabase.js';
 import { testConnection } from '../lib/db/connection.js';
 import { seedTestDatabase } from './seedTestDatabase.js';
 
@@ -28,13 +28,13 @@ export async function setupTestEnvironment() {
     // Start test server for integration tests with real API endpoints
     console.log('🚀 Starting test server for integration tests...');
     const express = require('express');
-    const { PostgresVectorDatabase } = await import('../lib/postgresVectorDatabase.js');
+    const { PostgresVectorDatabase: _PostgresVectorDatabase } = await import('../lib/postgresVectorDatabase.js');
     
     const app = express();
     app.use(express.json());
     
     // Initialize vector database for server
-    const serverDb = new PostgresVectorDatabase();
+    const serverDb = new _PostgresVectorDatabase();
     await serverDb.initialize();
     
     // Add essential API endpoints for integration tests

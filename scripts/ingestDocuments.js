@@ -8,7 +8,7 @@ import { civicsQuestions } from '../lib/db/schema.js';
 import 'dotenv/config';
 
 // Helper function to clear PostgreSQL database
-async function clearDatabase(vectorDB) {
+async function clearDatabase(_vectorDB) {
   try {
     // Delete all records from civics_questions table
     await db.delete(civicsQuestions);

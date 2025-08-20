@@ -1,5 +1,4 @@
-import { useEffect, useRef, useState } from "react";
-import logo from "/assets/united-states.png";
+import { useEffect, useRef, useState, useCallback } from "react";
 import QuickStart from "./QuickStart";
 import SessionControls from "./SessionControls";
 import SessionStatus from "./SessionStatus";
@@ -23,16 +22,20 @@ function CitizenshipApp() {
   const activityTimeoutRef = useRef(null);
   const warningTimeoutRef = useRef(null);
   const pausedSessionState = useRef(null);
-  const [isInWarningPeriod, setIsInWarningPeriod] = useState(false);
+  const [_isInWarningPeriod, setIsInWarningPeriod] = useState(false);
   const isInWarningPeriodRef = useRef(false);
   const isResumingRef = useRef(false);
+  const pauseSessionRef = useRef(null);
+  const sendClientEventRef = useRef(null);
+  const startSessionRef = useRef(null);
+  const stopSessionRef = useRef(null);
 
   // Configuration constants
   const INACTIVITY_TIMEOUT = 3 * 60 * 1000; // 3 minutes (using VAD detection)
   const WARNING_TIME = 30 * 1000; // Show warning 30 seconds before timeout
 
   // Reset activity timer and clear warnings
-  function resetActivityTimer() {
+  const resetActivityTimer = useCallback(() => {
     const now = Date.now();
     setLastActivityTime(now);
     setShowTimeoutWarning(false);
@@ -77,22 +80,26 @@ function CitizenshipApp() {
           },
         };
         
-        sendClientEvent(warningEvent, true); // Skip activity reset for warning
-        sendClientEvent({ type: "response.create" }, true);
+        if (sendClientEventRef.current) {
+          sendClientEventRef.current(warningEvent, true); // Skip activity reset for warning
+          sendClientEventRef.current({ type: "response.create" }, true);
+        }
       }, INACTIVITY_TIMEOUT - WARNING_TIME);
 
       // Set pause timeout
       activityTimeoutRef.current = setTimeout(() => {
         console.log('Auto-pausing due to inactivity');
-        pauseSession();
+        if (pauseSessionRef.current) {
+          pauseSessionRef.current();
+        }
       }, INACTIVITY_TIMEOUT);
     } else {
       console.log('Not setting timers - Session active:', isSessionActive, 'Paused:', isPaused);
     }
-  }
+  }, [isSessionActive, isPaused, INACTIVITY_TIMEOUT, WARNING_TIME]);
 
   // Pause session to stop billing - actually closes the connection
-  function pauseSession() {
+  const pauseSession = useCallback(() => {
     if (dataChannel && isSessionActive && !isPaused) {
       console.log('Pausing session - closing connection to stop billing');
       
@@ -128,10 +135,13 @@ function CitizenshipApp() {
       setDataChannel(null);
       peerConnection.current = null;
     }
-  }
+  }, [dataChannel, isSessionActive, isPaused, events, sessionStartTime, lastActivityTime]);
+
+  // Update refs when functions change
+  pauseSessionRef.current = pauseSession;
 
   // Resume session - creates new connection
-  async function resumeSession() {
+  const resumeSession = useCallback(async () => {
     if (isPaused && pausedSessionState.current) {
       console.log('Resuming session - creating new connection');
       
@@ -145,7 +155,9 @@ function CitizenshipApp() {
         setLastActivityTime(Date.now()); // Update to current time
         
         // Create new session
-        await startSession(true);
+        if (startSessionRef.current) {
+          await startSessionRef.current(true);
+        }
         
         // Calculate and accumulate paused time
         if (pausedAt) {
@@ -163,10 +175,12 @@ function CitizenshipApp() {
       } catch (error) {
         console.error('Failed to resume session:', error);
         // If resume fails, stop the session completely
-        stopSession();
+        if (stopSessionRef.current) {
+          stopSessionRef.current();
+        }
       }
     }
-  }
+  }, [isPaused, pausedSessionState, pausedAt]);
 
   // Dismiss timeout warning (user acknowledged it)
   function dismissTimeoutWarning() {
@@ -177,7 +191,7 @@ function CitizenshipApp() {
     resetActivityTimer();
   }
 
-  async function startSession(isResume = false) {
+  const startSession = useCallback(async (isResume = false) => {
     // Get a session token for OpenAI Realtime API
     const tokenResponse = await fetch("/token");
     const data = await tokenResponse.json();
@@ -231,10 +245,13 @@ function CitizenshipApp() {
       setLastActivityTime(now);
     }
     setIsPaused(false);
-  }
+  }, []);
+
+  // Update startSession ref
+  startSessionRef.current = startSession;
 
   // Stop current session, clean up peer connection and data channel
-  function stopSession() {
+  const stopSession = useCallback(() => {
     console.log('Stopping session - cleaning up all connections and state');
     
     // Clear all timers
@@ -268,10 +285,13 @@ function CitizenshipApp() {
     setTotalPausedTime(0);
     peerConnection.current = null;
     pausedSessionState.current = null;
-  }
+  }, [dataChannel]);
+
+  // Update stopSession ref
+  stopSessionRef.current = stopSession;
 
   // Send a message to the model
-  function sendClientEvent(message, skipActivityReset = false) {
+  const sendClientEvent = useCallback((message, skipActivityReset = false) => {
     if (dataChannel) {
       // Debug session.update events
       if (message.type === 'session.update') {
@@ -300,7 +320,10 @@ function CitizenshipApp() {
         message,
       );
     }
-  }
+  }, [dataChannel, resetActivityTimer]);
+
+  // Update ref when sendClientEvent function changes
+  sendClientEventRef.current = sendClientEvent;
 
   // Send a text message to the model with RAG enhancement
   async function sendTextMessage(message) {
@@ -365,7 +388,7 @@ function CitizenshipApp() {
 
 
   // Check for voice commands in transcription completion events
-  function checkForVoiceCommandsFromTranscript(event) {
+  const checkForVoiceCommandsFromTranscript = useCallback((event) => {
     const transcript = event.transcript;
     
     if (!transcript || typeof transcript !== 'string') {
@@ -406,7 +429,7 @@ function CitizenshipApp() {
     }
     
     return false; // No command was processed
-  }
+  }, [isSessionActive, isPaused, pauseSession, resumeSession, resetActivityTimer]);
 
   // Attach event listeners to the data channel when a new one is created
   useEffect(() => {
@@ -444,9 +467,8 @@ function CitizenshipApp() {
         setEvents((prev) => [event, ...prev]);
         
         // Check for voice commands in conversation items
-        let voiceCommandProcessed = false;
         if (event.type === 'conversation.item.input_audio_transcription.completed') {
-          voiceCommandProcessed = checkForVoiceCommandsFromTranscript(event);
+          checkForVoiceCommandsFromTranscript(event);
         }
         
         // Reset activity timer on meaningful speech and conversation events
@@ -513,7 +535,7 @@ function CitizenshipApp() {
         dataChannel.removeEventListener("open", handleOpen);
       };
     }
-  }, [dataChannel, isSessionActive, isPaused]);
+  }, [dataChannel, isSessionActive, isPaused, checkForVoiceCommandsFromTranscript, resetActivityTimer]);
 
   return (
     <>

@@ -1,4 +1,4 @@
-import React from 'react';
+
 import { render, screen, waitFor, act } from '@testing-library/react';
 import CitizenshipTestPanel from '../client/components/CitizenshipTestPanel.jsx';
 

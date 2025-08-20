@@ -47,7 +47,7 @@ test.describe('US Citizenship Test Assistant - E2E', () => {
     await expect(page.locator('text=Session Status')).toBeVisible();
     
     // Look for connect/disconnect type controls
-    const sessionControls = page.locator('[data-testid="session-controls"]').or(
+    const _sessionControls = page.locator('[data-testid="session-controls"]').or(
       page.locator('text=Connect').or(page.locator('text=Disconnect'))
     );
     
@@ -208,7 +208,7 @@ test.describe('Database Integration E2E', () => {
           return await response.json();
         }
         return null;
-      } catch (error) {
+      } catch {
         return null;
       }
     });
@@ -231,7 +231,7 @@ test.describe('Database Integration E2E', () => {
           return await response.json();
         }
         return null;
-      } catch (error) {
+      } catch {
         return null;
       }
     });

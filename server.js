@@ -7,7 +7,7 @@ import { PostgresVectorDatabase } from "./lib/postgresVectorDatabase.js";
 import { testConnection } from "./lib/db/connection.js";
 import { prepareEnhancedMessage, isCitizenshipRelated, isCurrentOfficialsQuery } from "./lib/ragUtils.js";
 import passport from "./lib/auth/passport-config.js";
-import { optionalAuth, attachUser } from "./lib/auth/middleware.js";
+import { attachUser } from "./lib/auth/middleware.js";
 import { createDevUser } from "./lib/auth/dev-auth.js";
 import appInsights from "applicationinsights";
 import "dotenv/config";

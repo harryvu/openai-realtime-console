@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Clock, Pause, Play, AlertTriangle, X } from 'react-feather';
 
 export default function SessionStatus({ 

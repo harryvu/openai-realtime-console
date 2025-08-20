@@ -1,4 +1,4 @@
-import React from 'react';
+
 import { HelpCircle, Award, BookOpen, Users } from 'react-feather';
 
 export default function QuickStart({ sendTextMessage, isSessionActive }) {

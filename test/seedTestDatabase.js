@@ -3,7 +3,7 @@
  */
 
 import { config } from 'dotenv';
-import { PostgresVectorDatabase } from '../lib/postgresVectorDatabase.js';
+import { PostgresVectorDatabase as _PostgresVectorDatabase } from '../lib/postgresVectorDatabase.js';
 import { testConnection } from '../lib/db/connection.js';
 
 // Load test environment variables and override DATABASE_URL
@@ -32,7 +32,7 @@ try {
   USCIS_QUESTIONS = parsed.questions || parsed; // Handle different formats
   console.log(`📚 Loaded ${USCIS_QUESTIONS.length} USCIS questions from data file`);
 } catch (error) {
-  console.warn('⚠️ Could not load questions from data file, using fallback questions');
+  console.warn('⚠️ Could not load questions from data file, using fallback questions', error);
   
   // Fallback: Core questions for testing
   USCIS_QUESTIONS = [
@@ -104,7 +104,7 @@ export async function seedTestDatabase() {
 
     console.log('⚡ Initializing PostgreSQL vector database...');
     // Initialize PostgreSQL vector database
-    const testDb = new PostgresVectorDatabase();
+    const testDb = new _PostgresVectorDatabase();
     await testDb.initialize();
     console.log('✅ Test database initialized');
 

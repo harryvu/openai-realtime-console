@@ -1,5 +1,5 @@
-import React from 'react';
-import { render, screen, waitFor, act, fireEvent } from '@testing-library/react';
+
+import { render, waitFor } from '@testing-library/react';
 import App from '../client/components/App.jsx';
 
 // Mock the AuthContext
@@ -14,7 +14,7 @@ jest.mock('../client/contexts/AuthContext', () => ({
 
 // Test the complete App pause/resume flow
 describe('App Component Pause/Resume with Practice Questions', () => {
-  let mockStartSession, mockPauseSession, mockResumeSession;
+  let _mockStartSession, _mockPauseSession, _mockResumeSession;
 
   beforeEach(() => {
     jest.clearAllMocks();

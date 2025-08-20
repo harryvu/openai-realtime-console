@@ -1,4 +1,3 @@
-import React from 'react';
 import { LogIn, LogOut, User } from 'react-feather';
 
 export function AuthButton({ user, onLogin, onLogout, provider = null, isLoading = false }) {

@@ -4,8 +4,8 @@
 
 import { config } from 'dotenv';
 import pkg from 'pg';
-import { db } from '../lib/db/connection.js';
-import { sql } from 'drizzle-orm';
+import { db as _db } from '../lib/db/connection.js';
+import { sql as _sql } from 'drizzle-orm';
 
 const { Pool } = pkg;
 
