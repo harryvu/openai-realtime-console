@@ -42,7 +42,7 @@ jest.mock('../lib/auth/passport-config.js', () => ({
   default: {
     initialize: () => (req, res, next) => next(),
     session: () => (req, res, next) => next(),
-    authenticate: (strategy) => (req, res, next) => {
+    authenticate: (_strategy) => (req, res, next) => {
       if (req.url.includes('callback')) {
         req.user = { id: 'test-user' };
       }
@@ -245,7 +245,7 @@ describe('Ultimate Coverage Test', () => {
 
     it('should cover search endpoint logic', async () => {
       const { PostgresVectorDatabase } = require('../lib/postgresVectorDatabase.js');
-      const ragUtils = require('../lib/ragUtils.js');
+      // const ragUtils = require('../lib/ragUtils.js');
       
       const mockVectorDB = new PostgresVectorDatabase();
       
@@ -731,7 +731,7 @@ describe('Ultimate Coverage Test', () => {
         useCallback: require('react').useCallback
       };
       
-      Object.entries(componentPatterns).forEach(([key, hook]) => {
+      Object.entries(componentPatterns).forEach(([_key, hook]) => {
         expect(typeof hook).toBe('function');
       });
       
@@ -744,7 +744,7 @@ describe('Ultimate Coverage Test', () => {
         onBlur: jest.fn()
       };
       
-      Object.entries(eventHandlers).forEach(([eventName, handler]) => {
+      Object.entries(eventHandlers).forEach(([_eventName, handler]) => {
         handler();
         expect(handler).toHaveBeenCalled();
       });
@@ -764,7 +764,7 @@ describe('Ultimate Coverage Test', () => {
         () => { return Math.random() > 0.5 ? 'yes' : 'no'; }
       ];
       
-      patterns.forEach((pattern, index) => {
+      patterns.forEach((pattern, _index) => {
         try {
           const result = pattern();
           expect(result).toBeDefined();

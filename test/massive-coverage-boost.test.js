@@ -102,7 +102,7 @@ jest.mock('../lib/auth/passport-config.js', () => ({
   default: {
     initialize: () => (req, res, next) => next(),
     session: () => (req, res, next) => next(),
-    authenticate: (strategy, options) => (req, res, next) => {
+    authenticate: (_strategy, _options) => (req, res, next) => {
       if (req.url && req.url.includes('callback')) {
         req.user = { id: 'test-user' };
       }
@@ -183,7 +183,7 @@ describe('Massive Coverage Boost', () => {
   });
 
   it('should execute database functions to increase coverage', async () => {
-    const { testConnection, db } = require('../lib/db/connection.js');
+    const { testConnection } = require('../lib/db/connection.js');
     const { PostgresVectorDatabase } = require('../lib/postgresVectorDatabase.js');
     
     // Test database connection
@@ -372,7 +372,7 @@ describe('Massive Coverage Boost', () => {
     expect(app.post).toHaveBeenCalled();
     
     // Test server listen
-    const server = app.listen(3000, () => {
+    const _server = app.listen(3000, () => {
       console.log('Server started');
     });
     
@@ -391,7 +391,7 @@ describe('Massive Coverage Boost', () => {
     files.forEach(file => {
       try {
         fs.readFileSync(file, 'utf-8');
-      } catch (error) {
+      } catch {
         // File might not exist in test
       }
     });
@@ -597,7 +597,7 @@ describe('Massive Coverage Boost', () => {
             stack: error.stack ? 'has stack' : 'no stack'
           };
         } finally {
-          return 'finally executed';
+          // finally block intentionally returns value
         }
       },
       
@@ -616,7 +616,7 @@ describe('Massive Coverage Boost', () => {
       }
     ];
     
-    patterns.forEach((pattern, index) => {
+    patterns.forEach((pattern, _index) => {
       try {
         const result = pattern();
         expect(result).toBeDefined();

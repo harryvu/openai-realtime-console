@@ -31,7 +31,7 @@ jest.mock('../lib/auth/passport-config.js', () => ({
       next();
     },
     session: () => (req, res, next) => next(),
-    authenticate: (strategy, options) => (req, res, next) => {
+    authenticate: (_strategy, _options) => (req, res, next) => {
       if (req.url.includes('callback')) {
         req.user = { id: 'test-user' };
       }
@@ -176,7 +176,7 @@ describe('Server Integration Tests', () => {
 
         const data = await response.json();
         res.json(data);
-      } catch (error) {
+      } catch {
         res.status(500).json({ error: 'Failed to generate token' });
       }
     });
@@ -196,7 +196,7 @@ describe('Server Integration Tests', () => {
           results: results,
           count: results.length
         });
-      } catch (error) {
+      } catch {
         res.status(500).json({ error: 'Search failed' });
       }
     });
@@ -205,7 +205,7 @@ describe('Server Integration Tests', () => {
       try {
         const info = await mockVectorDB.getInfo();
         res.json(info);
-      } catch (error) {
+      } catch {
         res.status(500).json({ error: 'Failed to get database info' });
       }
     });
@@ -219,7 +219,7 @@ describe('Server Integration Tests', () => {
           answer: randomQuestion.answer,
           category: randomQuestion.category
         });
-      } catch (error) {
+      } catch {
         res.status(500).json({ error: 'Failed to get random question' });
       }
     });
@@ -245,7 +245,7 @@ describe('Server Integration Tests', () => {
           user_answer: userAnswer,
           feedback: isCorrect ? 'Correct!' : `The correct answer is: ${questionData.answer}`
         });
-      } catch (error) {
+      } catch {
         res.status(500).json({ error: 'Failed to check answer' });
       }
     });
@@ -280,7 +280,7 @@ describe('Server Integration Tests', () => {
           contextSize: enhanced.contextSize || 0,
           searchResults: searchResults
         });
-      } catch (error) {
+      } catch {
         res.status(500).json({ error: 'Failed to enhance message' });
       }
     });

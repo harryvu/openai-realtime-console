@@ -199,18 +199,18 @@ function CitizenshipApp() {
       data = await tokenResponse.json();
     } catch (e) {
       console.error("Failed to parse /token response:", e);
-      alert("Failed to get session token. Please check server logs and your OpenAI API key.");
+      window.alert("Failed to get session token. Please check server logs and your OpenAI API key.");
       return;
     }
     if (!tokenResponse.ok) {
       console.error("/token error:", data);
-      alert(`Token error: ${data?.error || tokenResponse.statusText}`);
+      window.alert(`Token error: ${data?.error || tokenResponse.statusText}`);
       return;
     }
     const EPHEMERAL_KEY = data?.client_secret?.value;
     if (!EPHEMERAL_KEY) {
       console.error("Ephemeral key missing from /token response:", data);
-      alert("Missing ephemeral key from server. Verify OPENAI_API_KEY and network access.");
+      window.alert("Missing ephemeral key from server. Verify OPENAI_API_KEY and network access.");
       return;
     }
 

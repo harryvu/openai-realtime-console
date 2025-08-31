@@ -200,7 +200,7 @@ describe('Coverage Boost Tests', () => {
         () => { return { error: 'Custom error' }; }
       ];
 
-      errorCases.forEach((errorCase, index) => {
+      errorCases.forEach((errorCase, _index) => {
         try {
           errorCase();
         } catch (error) {
@@ -240,7 +240,7 @@ describe('Coverage Boost Tests', () => {
         DEFAULT_LIMIT: 5
       };
 
-      Object.entries(constants).forEach(([key, value]) => {
+      Object.entries(constants).forEach(([_key, value]) => {
         expect(typeof value).toBe('number');
         expect(value).toBeGreaterThan(0);
       });
