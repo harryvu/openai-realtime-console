@@ -9,24 +9,31 @@ import { prepareEnhancedMessage, isCitizenshipRelated, isCurrentOfficialsQuery }
 import passport from "./lib/auth/passport-config.js";
 import { attachUser } from "./lib/auth/middleware.js";
 import { createDevUser } from "./lib/auth/dev-auth.js";
-import appInsights from "applicationinsights";
+// Lazy-load Application Insights only when configured to avoid extra deps in dev
+let appInsights = { defaultClient: null };
 import "dotenv/config";
 
-// Initialize Application Insights for monitoring
+// Initialize Application Insights for monitoring (only if configured)
 if (process.env.APPLICATIONINSIGHTS_CONNECTION_STRING) {
-  appInsights.setup(process.env.APPLICATIONINSIGHTS_CONNECTION_STRING)
-    .setAutoDependencyCorrelation(true)
-    .setAutoCollectRequests(true)
-    .setAutoCollectPerformance(true, true)
-    .setAutoCollectExceptions(true)
-    .setAutoCollectDependencies(true)
-    .setAutoCollectConsole(true)
-    .setUseDiskRetryCaching(true)
-    .setSendLiveMetrics(true)
-    .setDistributedTracingMode(appInsights.DistributedTracingModes.AI_AND_W3C)
-    .start();
-  
-  console.log('✅ Application Insights initialized');
+  try {
+    const ai = await import("applicationinsights");
+    ai.default
+      .setup(process.env.APPLICATIONINSIGHTS_CONNECTION_STRING)
+      .setAutoDependencyCorrelation(true)
+      .setAutoCollectRequests(true)
+      .setAutoCollectPerformance(true, true)
+      .setAutoCollectExceptions(true)
+      .setAutoCollectDependencies(true)
+      .setAutoCollectConsole(true)
+      .setUseDiskRetryCaching(true)
+      .setSendLiveMetrics(true)
+      .setDistributedTracingMode(ai.default.DistributedTracingModes.AI_AND_W3C)
+      .start();
+    appInsights = ai.default;
+    console.log('✅ Application Insights initialized');
+  } catch (e) {
+    console.warn('⚠️  Application Insights failed to initialize:', e?.message || e);
+  }
 } else if (process.env.NODE_ENV === 'production') {
   console.warn('⚠️  Application Insights connection string not found in production environment');
 }
@@ -245,6 +252,13 @@ ABSOLUTELY MANDATORY - FUNCTION CALL REQUIRED:
 - You CANNOT skip this function call
 - Example: You speak "What is the supreme law of the land?" → IMMEDIATELY call request_practice_question({"question": "What is the supreme law of the land?"})
 - If speaking in Vietnamese, include the English equivalent: request_practice_question({"question": "What is the name of the Vice President of the United States now?"})
+
+SILENCE AFTER ASKING (CRITICAL):
+- When you ask a practice question, speak ONLY the question text, then immediately call request_practice_question().
+- After the function call, remain silent and WAIT for the student's answer or next input.
+- Do NOT add filler like "Let me send that question for you to prepare.", explanations, hints, or follow‑up prompts unless the user asks.
+- Do NOT rephrase or append any additional words to the question.
+- You may speak again only when the user replies, asks to repeat, requests help, or when a new user message explicitly requires a response.
 
 REMEMBER: Every citizenship question MUST be followed by the function call. No exceptions.
 

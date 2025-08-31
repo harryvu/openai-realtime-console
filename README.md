@@ -2,6 +2,15 @@
 
 This is an example application showing how to use the [OpenAI Realtime API](https://platform.openai.com/docs/guides/realtime) with [WebRTC](https://platform.openai.com/docs/guides/realtime-webrtc).
 
+## Project Docs
+
+- Product Requirements: [PRD.md](./PRD.md)
+- Contributor Guide: [AGENTS.md](./AGENTS.md)
+- Architecture Overview: [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md)
+- Authentication: [docs/AUTHENTICATION.md](./docs/AUTHENTICATION.md)
+- Azure Deployment: [docs/AZURE_DEPLOYMENT.md](./docs/AZURE_DEPLOYMENT.md)
+- PostgreSQL Migration: [docs/POSTGRESQL_MIGRATION.md](./docs/POSTGRESQL_MIGRATION.md)
+
 ## Installation and usage
 
 Before you begin, you'll need an OpenAI API key - [create one in the dashboard here](https://platform.openai.com/settings/api-keys). Create a `.env` file from the example file and set your API key in there:

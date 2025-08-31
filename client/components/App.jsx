@@ -194,8 +194,25 @@ function CitizenshipApp() {
   const startSession = useCallback(async (isResume = false) => {
     // Get a session token for OpenAI Realtime API
     const tokenResponse = await fetch("/token");
-    const data = await tokenResponse.json();
-    const EPHEMERAL_KEY = data.client_secret.value;
+    let data;
+    try {
+      data = await tokenResponse.json();
+    } catch (e) {
+      console.error("Failed to parse /token response:", e);
+      alert("Failed to get session token. Please check server logs and your OpenAI API key.");
+      return;
+    }
+    if (!tokenResponse.ok) {
+      console.error("/token error:", data);
+      alert(`Token error: ${data?.error || tokenResponse.statusText}`);
+      return;
+    }
+    const EPHEMERAL_KEY = data?.client_secret?.value;
+    if (!EPHEMERAL_KEY) {
+      console.error("Ephemeral key missing from /token response:", data);
+      alert("Missing ephemeral key from server. Verify OPENAI_API_KEY and network access.");
+      return;
+    }
 
     // Create a peer connection
     const pc = new RTCPeerConnection();
@@ -220,7 +237,8 @@ function CitizenshipApp() {
     await pc.setLocalDescription(offer);
 
     const baseUrl = "https://api.openai.com/v1/realtime";
-    const model = "gpt-4o-realtime-preview-2024-12-17";
+    // Use the same model as the server-issued session to avoid mismatch
+    const model = "gpt-4o-realtime-preview-2024-10-01";
     const sdpResponse = await fetch(`${baseUrl}?model=${model}`, {
       method: "POST",
       body: offer.sdp,
