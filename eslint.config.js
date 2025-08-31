@@ -3,6 +3,10 @@ import reactPlugin from 'eslint-plugin-react';
 import reactHooksPlugin from 'eslint-plugin-react-hooks';
 
 export default [
+  // Ignore patterns
+  {
+    ignores: ['node_modules/**', 'dist/**', 'client/dist/**', 'coverage/**', '*.min.js']
+  },
   js.configs.recommended,
   // Client-side files (React components)
   {
