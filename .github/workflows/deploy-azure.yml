@@ -76,7 +76,9 @@ jobs:
       - name: Debug Azure Credentials
         run: |
           echo "AZURE_CREDENTIALS exists: ${{ secrets.AZURE_CREDENTIALS != '' }}"
-          echo "Length: ${#AZURE_CREDENTIALS}"
+          echo "First 20 chars: ${AZURE_CREDENTIALS:0:20}"
+          echo "Contains clientId: $(echo $AZURE_CREDENTIALS | grep -o clientId || echo 'NOT FOUND')"
+          echo "Contains tenantId: $(echo $AZURE_CREDENTIALS | grep -o tenantId || echo 'NOT FOUND')"
         env:
           AZURE_CREDENTIALS: ${{ secrets.AZURE_CREDENTIALS }}
       
