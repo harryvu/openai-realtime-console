@@ -32,6 +32,22 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Debug GitHub Secrets Access
+        run: |
+          echo "=== GitHub Secrets Debug ==="
+          echo "Repository: ${{ github.repository }}"
+          echo "Event: ${{ github.event_name }}"
+          echo "Branch: ${{ github.ref }}"
+          echo "Actor: ${{ github.actor }}"
+          echo "=== Testing Basic Secret Access ==="
+          echo "OPENAI_API_KEY exists: ${{ secrets.OPENAI_API_KEY != '' }}"
+          echo "SESSION_SECRET exists: ${{ secrets.SESSION_SECRET != '' }}"
+          echo "=== Testing Azure Secrets ==="
+          echo "AZURE_CLIENT_ID exists: ${{ secrets.AZURE_CLIENT_ID != '' }}"
+          echo "AZURE_TENANT_ID exists: ${{ secrets.AZURE_TENANT_ID != '' }}"
+          echo "AZURE_SUBSCRIPTION_ID exists: ${{ secrets.AZURE_SUBSCRIPTION_ID != '' }}"
+          echo "AZURE_CREDENTIALS exists: ${{ secrets.AZURE_CREDENTIALS != '' }}"
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -83,12 +99,12 @@ jobs:
           echo "TENANT_ID set: ${{ secrets.AZURE_TENANT_ID != '' }}"
           echo "SUBSCRIPTION_ID set: ${{ secrets.AZURE_SUBSCRIPTION_ID != '' }}"
       
-      - name: Azure Login for Container Registry
+      - name: Azure Login for Container Registry (OIDC Fallback)
         uses: azure/login@v2
         with:
-          client-id: ${{ secrets.AZURE_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          client-id: 354d559c-b160-43ed-84b3-282c57c37134
+          tenant-id: c7dffbdc-8de2-40aa-94ac-72e2e7e775ef
+          subscription-id: 20c8c66c-9782-4a82-a124-57bd311002b5
 
       - name: Log in to Azure Container Registry
         run: |
@@ -130,9 +146,9 @@ jobs:
       - name: Azure Login
         uses: azure/login@v2
         with:
-          client-id: ${{ secrets.AZURE_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          client-id: 354d559c-b160-43ed-84b3-282c57c37134
+          tenant-id: c7dffbdc-8de2-40aa-94ac-72e2e7e775ef
+          subscription-id: 20c8c66c-9782-4a82-a124-57bd311002b5
 
       - name: Deploy Azure Infrastructure
         id: deploy
@@ -159,9 +175,9 @@ jobs:
       - name: Azure Login
         uses: azure/login@v2
         with:
-          client-id: ${{ secrets.AZURE_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          client-id: 354d559c-b160-43ed-84b3-282c57c37134
+          tenant-id: c7dffbdc-8de2-40aa-94ac-72e2e7e775ef
+          subscription-id: 20c8c66c-9782-4a82-a124-57bd311002b5
 
       - name: Deploy to Azure App Service
         uses: azure/webapps-deploy@v2
