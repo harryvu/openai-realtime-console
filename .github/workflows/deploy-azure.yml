@@ -73,8 +73,15 @@ jobs:
           name: dist-files
           path: dist/
 
+      - name: Debug Azure Credentials
+        run: |
+          echo "AZURE_CREDENTIALS exists: ${{ secrets.AZURE_CREDENTIALS != '' }}"
+          echo "Length: ${#AZURE_CREDENTIALS}"
+        env:
+          AZURE_CREDENTIALS: ${{ secrets.AZURE_CREDENTIALS }}
+      
       - name: Azure Login for Container Registry
-        uses: azure/login@v2
+        uses: azure/login@v1
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
@@ -116,7 +123,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Azure Login
-        uses: azure/login@v2
+        uses: azure/login@v1
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
@@ -143,7 +150,7 @@ jobs:
     
     steps:
       - name: Azure Login
-        uses: azure/login@v2
+        uses: azure/login@v1
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
